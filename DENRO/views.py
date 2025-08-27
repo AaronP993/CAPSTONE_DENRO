@@ -1,10 +1,10 @@
+# views.py
 from django.shortcuts import render, redirect
-from .operation import login_user
+from .operation import login_user  # uses Postgres functions under the hood
 
 def login_view(request):
-    # Always show login page on GET (useful during development)
     if request.method == "POST":
-        return login_user(request)  # will redirect on success
+        return login_user(request)  # DB-backed login
     return render(request, "LogIn.html")
 
 def superadmin_dashboard(request):
@@ -23,11 +23,7 @@ def cenro_activitylogs(request):
     return render(request, 'CENRO/CENRO_activitylogs.html')
 
 def cenro_reports(request):
-    return render (request, 'CENRO/CENRO_reports.html')
+    return render(request, 'CENRO/CENRO_reports.html')
 
 def cenro_templates(request):
-    return render (request, 'CENRO/CENRO_templates.html')
-
-def logout_view(request):
-    request.session.flush()
-    return redirect("login")
+    return render(request, 'CENRO/CENRO_templates.html')
