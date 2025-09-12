@@ -1,0 +1,258 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Create Account</title>
+  <link rel="stylesheet" href="{% static 'css/global.css' %}">
+</head>
+<body>
+
+<div class="signup-shell">
+  <div class="card">
+    <div class="card-left">
+      <img src="{% static 'images/Logo.png' %}" alt="DENR Logo" class="logo">
+    </div>
+
+    <div class="card-right">
+      <h1>CREATE ACCOUNT</h1>
+
+      {% if messages %}
+        <ul class="messages">
+          {% for m in messages %}
+            <li class="msg {{ m.tags }}">{{ m }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <form method="post" action="{% url 'account-create' %}" id="createAccountForm" novalidate>
+        {% csrf_token %}
+
+        <div class="field">
+          <label>First Name:</label>
+          <input type="text" name="first_name" required>
+        </div>
+
+        <div class="field">
+          <label>Last Name:</label>
+          <input type="text" name="last_name" required>
+        </div>
+
+        <div class="field">
+          <label>Gender:</label>
+          <div class="radio-row">
+            {% for g in genders %}
+              <label class="radio">
+                <input type="radio" name="gender" value="{{ g }}" required>
+                <span>{{ g|upper }}</span>
+              </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Email:</label>
+          <input type="email" name="email" required>
+        </div>
+
+        <div class="field">
+          <label>Phone No.:</label>
+          <input type="text" name="phone_number" placeholder="">
+        </div>
+
+        <!-- Region -->
+        <div class="field">
+          <label>Region:</label>
+          <select name="region_id" id="regionSelect">
+            <option value="">-- Select Region --</option>
+            {% for r in regions %}
+              <option value="{{ r.id }}">{{ r.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- PENRO (depends on Region) -->
+        <div class="field">
+          <label>PENRO:</label>
+          <select name="penro_id" id="penroSelect" disabled>
+            <option value="">-- Select PENRO --</option>
+          </select>
+        </div>
+
+        <!-- CENRO (depends on PENRO) -->
+        <div class="field">
+          <label>CENRO:</label>
+          <select name="cenro_id" id="cenroSelect" disabled>
+            <option value="">-- Select CENRO --</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Role:</label>
+          <select name="role" id="roleSelect" required>
+            <option value="">-- Select Role --</option>
+            {% for r in roles %}
+              <option value="{{ r }}">{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Username:</label>
+          <input type="text" name="username" required>
+        </div>
+
+        <div class="field">
+          <label>Password:</label>
+          <input type="password" name="password" required minlength="6">
+        </div>
+
+        <input type="hidden" name="profile_pic" value="">
+
+        <button type="submit" class="btn-next">CREATE</button>
+      </form>
+
+      <div class="pager-dots">
+        <span class="dot active"></span>
+        <span class="dot"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Cascading selects + role rules + clear conflicting fields before submit
+  (function () {
+    const regionSel = document.getElementById('regionSelect');
+    const penroSel  = document.getElementById('penroSelect');
+    const cenroSel  = document.getElementById('cenroSelect');
+    const roleSel   = document.getElementById('roleSelect');
+    const form      = document.getElementById('createAccountForm');
+
+    function resetSelect(sel, placeholder) {
+      sel.innerHTML = '';
+      const opt = document.createElement('option');
+      opt.value = ''; opt.textContent = placeholder;
+      sel.appendChild(opt);
+      sel.value = '';
+    }
+
+    function disable(sel, flag) {
+      sel.disabled = flag;
+      if (flag) sel.classList.add('is-disabled'); else sel.classList.remove('is-disabled');
+    }
+
+    async function loadPenros(regionId) {
+      resetSelect(penroSel, '-- Select PENRO --');
+      resetSelect(cenroSel, '-- Select CENRO --');
+      if (!regionId) {
+        disable(penroSel, true);
+        disable(cenroSel, true);
+        return;
+      }
+      disable(penroSel, false);
+      try {
+        const res = await fetch(`/api/penros/${regionId}/`);
+        const data = await res.json();
+        (data.items || []).forEach(({id, name}) => {
+          const o = document.createElement('option');
+          o.value = id; o.textContent = name;
+          penroSel.appendChild(o);
+        });
+      } catch (_) { /* ignore */ }
+    }
+
+    async function loadCenros(penroId) {
+      resetSelect(cenroSel, '-- Select CENRO --');
+      if (!penroId) { disable(cenroSel, true); return; }
+      disable(cenroSel, false);
+      try {
+        const res = await fetch(`/api/cenros/${penroId}/`);
+        const data = await res.json();
+        (data.items || []).forEach(({id, name}) => {
+          const o = document.createElement('option');
+          o.value = id; o.textContent = name;
+          cenroSel.appendChild(o);
+        });
+      } catch (_) { /* ignore */ }
+    }
+
+    function applyRoleRules() {
+      const role = roleSel.value;
+
+      // show all by default
+      regionSel.closest('.field').style.display = '';
+      penroSel.closest('.field').style.display  = '';
+      cenroSel.closest('.field').style.display  = '';
+
+      if (role === 'Super Admin') {
+        regionSel.value = '';
+        resetSelect(penroSel, '-- Select PENRO --'); resetSelect(cenroSel, '-- Select CENRO --');
+        disable(penroSel, true); disable(cenroSel, true);
+        regionSel.closest('.field').style.display = 'none';
+        penroSel.closest('.field').style.display  = 'none';
+        cenroSel.closest('.field').style.display  = 'none';
+      } else if (role === 'Admin' || role === 'Evaluator') {
+        // Region required; others optional
+        disable(penroSel, !regionSel.value);
+        disable(cenroSel, !penroSel.value);
+      } else if (role === 'PENRO') {
+        // Region + PENRO required; hide CENRO
+        disable(penroSel, !regionSel.value);
+        resetSelect(cenroSel, '-- Select CENRO --'); disable(cenroSel, true);
+        cenroSel.closest('.field').style.display = 'none';
+      } else if (role === 'CENRO') {
+        // Region + PENRO + CENRO required
+        disable(penroSel, !regionSel.value);
+        disable(cenroSel, !penroSel.value);
+      }
+    }
+
+    // Clear conflicting office fields on submit so DB function accepts
+    form.addEventListener('submit', function () {
+      const role = roleSel.value;
+      if (role === 'Super Admin') {
+        regionSel.value = '';
+        penroSel.value  = '';
+        cenroSel.value  = '';
+      } else if (role === 'Admin') {
+        penroSel.value  = '';
+        cenroSel.value  = '';
+      } else if (role === 'PENRO') {
+        regionSel.value = '';
+        cenroSel.value  = '';
+      } else if (role === 'CENRO') {
+        regionSel.value = '';
+        penroSel.value  = '';
+      } else if (role === 'Evaluator') {
+        if (cenroSel.value) {
+          regionSel.value = '';
+          penroSel.value  = '';
+        } else if (penroSel.value) {
+          regionSel.value = '';
+          cenroSel.value  = '';
+        } else {
+          penroSel.value  = '';
+          cenroSel.value  = '';
+        }
+      }
+    });
+
+    regionSel.addEventListener('change', (e) => {
+      loadPenros(e.target.value).then(applyRoleRules);
+    });
+    penroSel.addEventListener('change', (e) => {
+      loadCenros(e.target.value).then(applyRoleRules);
+    });
+    roleSel.addEventListener('change', applyRoleRules);
+
+    // Initial
+    disable(penroSel, true);
+    disable(cenroSel, true);
+    applyRoleRules();
+  })();
+</script>
+
+<script src="{% static 'js/global.js' %}"></script>
+</body>
+</html>
