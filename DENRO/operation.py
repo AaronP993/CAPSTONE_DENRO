@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # =========================
-# LOGIN via Postgres function
+# LOGIN via Postgres function (UPDATED to match your schema)
 # =========================
 def login_user(request):
     if request.method != "POST":
@@ -46,7 +46,7 @@ def login_user(request):
         messages.error(request, "Username or password is incorrect.")
         return redirect("login")
 
-    # Unpack and set session (matches auth_login RETURNS)
+    # Unpack and set session (matches updated auth_login RETURNS)
     user_id, uname, role, first_name, last_name, region_id, penro_id, cenro_id = row
     request.session["user_id"]    = user_id
     request.session["username"]   = uname
@@ -72,7 +72,6 @@ def login_user(request):
         request.session.flush()
         return redirect("login")
 
-
 # =========================
 # LOGOUT
 # =========================
@@ -81,20 +80,204 @@ def logout_user(request):
     messages.success(request, "You have been logged out.")
     return redirect("login")
 
+# =========================
+# Helper: Check if user is logged in and get current user role
+# =========================
+def get_current_user_info(request):
+    """Returns tuple of (user_role, region_id, penro_id, cenro_id) or (None, None, None, None)"""
+    if not request.session.get("user_id"):
+        return None, None, None, None
+    
+    role = request.session.get("role", "").lower()
+    region_id = request.session.get("region_id")
+    penro_id = request.session.get("penro_id")
+    cenro_id = request.session.get("cenro_id")
+    
+    return role, region_id, penro_id, cenro_id
 
 # =========================
-# Helpers: fetch options (SQL)
+# Helper: Get allowed roles for current user
+# =========================
+def get_allowed_roles_for_user(current_role):
+    """Returns list of roles that current user can create"""
+    role_hierarchy = {
+        "super admin": ["Super Admin", "Admin"],
+        "admin": ["Admin", "PENRO"],
+        "penro": ["PENRO", "CENRO"],
+        "cenro": ["CENRO", "Evaluator"],
+        "evaluator": []  # Evaluators cannot create users
+    }
+    return role_hierarchy.get(current_role, [])
+
+# =========================
+# Helper: Get available offices based on current user's role and assignments
+# =========================
+def get_available_offices_for_user(current_role, current_region_id, current_penro_id, current_cenro_id):
+    """Returns dict with available regions, penros, and cenros based on current user's permissions"""
+    regions = []
+    penros = []
+    cenros = []
+    
+    with connection.cursor() as cur:
+        if current_role == "super admin":
+            # Super Admin can see all regions
+            cur.execute("SELECT id, name FROM regions ORDER BY name;")
+            regions = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
+            
+        elif current_role == "admin":
+            # Admin can only see their assigned region and its PENROs
+            if current_region_id:
+                cur.execute("SELECT id, name FROM regions WHERE id = %s;", [current_region_id])
+                regions = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
+                
+                cur.execute("SELECT id, name FROM penros WHERE region_id = %s ORDER BY name;", [current_region_id])
+                penros = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
+                
+        elif current_role == "penro":
+            # PENRO can only see their assigned PENRO and its CENROs
+            if current_penro_id:
+                cur.execute("SELECT id, name FROM penros WHERE id = %s;", [current_penro_id])
+                penros = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
+                
+                cur.execute("SELECT id, name FROM cenros WHERE penro_id = %s ORDER BY name;", [current_penro_id])
+                cenros = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
+                
+        elif current_role == "cenro":
+            # CENRO can only see their assigned CENRO
+            if current_cenro_id:
+                cur.execute("SELECT id, name FROM cenros WHERE id = %s;", [current_cenro_id])
+                cenros = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
+    
+    return {
+        "regions": regions,
+        "penros": penros,
+        "cenros": cenros
+    }
+
+# =========================
+# Helper: Validate office assignment based on role and current user permissions
+# =========================
+def validate_office_assignment(target_role, region_id, penro_id, cenro_id, current_user):
+    """Validates if the current user can assign the target role to the specified offices"""
+    current_role, current_region_id, current_penro_id, current_cenro_id = current_user
+    
+    # Convert string IDs to integers or None
+    def to_int_or_none(v):
+        try:
+            return int(v) if v not in (None, "", "null") else None
+        except Exception:
+            return None
+    
+    r = to_int_or_none(region_id)
+    p = to_int_or_none(penro_id)
+    c = to_int_or_none(cenro_id)
+    
+    # Check role-specific office requirements
+    if target_role == "Super Admin":
+        if r or p or c:
+            return False, "Super Admin cannot be assigned to any office."
+    elif target_role == "Admin":
+        if not r or p or c:
+            return False, "Admin must be assigned to exactly one Region."
+        # Check if current user can assign to this region
+        if current_role == "super admin":
+            pass  # Super admin can assign to any region
+        elif current_role == "admin" and current_region_id == r:
+            pass  # Admin can assign to their own region
+        else:
+            return False, "You don't have permission to assign Admin to this region."
+    elif target_role == "PENRO":
+        if r or not p or c:
+            return False, "PENRO must be assigned to exactly one PENRO office."
+        # Check if current user can assign to this PENRO
+        if current_role == "super admin":
+            pass  # Super admin can assign to any PENRO
+        elif current_role == "admin":
+            # Check if this PENRO belongs to admin's region
+            with connection.cursor() as cur:
+                cur.execute("SELECT region_id FROM penros WHERE id = %s;", [p])
+                row = cur.fetchone()
+                if not row or row[0] != current_region_id:
+                    return False, "You can only assign PENRO within your region."
+        elif current_role == "penro" and current_penro_id == p:
+            pass  # PENRO can assign to their own office
+        else:
+            return False, "You don't have permission to assign PENRO to this office."
+    elif target_role == "CENRO":
+        if r or p or not c:
+            return False, "CENRO must be assigned to exactly one CENRO office."
+        # Check if current user can assign to this CENRO
+        if current_role == "super admin":
+            pass  # Super admin can assign to any CENRO
+        elif current_role == "admin":
+            # Check if this CENRO belongs to admin's region
+            with connection.cursor() as cur:
+                cur.execute("""
+                    SELECT p.region_id 
+                    FROM cenros c 
+                    JOIN penros p ON c.penro_id = p.id 
+                    WHERE c.id = %s;
+                """, [c])
+                row = cur.fetchone()
+                if not row or row[0] != current_region_id:
+                    return False, "You can only assign CENRO within your region."
+        elif current_role == "penro":
+            # Check if this CENRO belongs to PENRO's office
+            with connection.cursor() as cur:
+                cur.execute("SELECT penro_id FROM cenros WHERE id = %s;", [c])
+                row = cur.fetchone()
+                if not row or row[0] != current_penro_id:
+                    return False, "You can only assign CENRO within your PENRO."
+        elif current_role == "cenro" and current_cenro_id == c:
+            pass  # CENRO can assign to their own office
+        else:
+            return False, "You don't have permission to assign CENRO to this office."
+    elif target_role == "Evaluator":
+        if not any([r, p, c]) or sum([bool(r), bool(p), bool(c)]) != 1:
+            return False, "Evaluator must be assigned to exactly one office (Region OR PENRO OR CENRO)."
+        # Check permissions based on which office is assigned
+        if c:  # Assigned to CENRO
+            if current_role == "cenro" and current_cenro_id == c:
+                pass  # CENRO can assign evaluator to their office
+            else:
+                return False, "You can only assign Evaluator to your own CENRO office."
+        elif p:  # Assigned to PENRO
+            if current_role == "penro" and current_penro_id == p:
+                pass  # PENRO can assign evaluator to their office
+            else:
+                return False, "You can only assign Evaluator to your own PENRO office."
+        elif r:  # Assigned to Region
+            if current_role == "admin" and current_region_id == r:
+                pass  # Admin can assign evaluator to their region
+            else:
+                return False, "You can only assign Evaluator to your own region."
+    
+    return True, None
+
+# =========================
+# Helpers: fetch options (SQL) - Updated for hierarchical access
 # =========================
 def _fetch_regions():
     with connection.cursor() as cur:
         cur.execute("SELECT id, name FROM regions ORDER BY name;")
         return [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
 
-
 # =========================
-# CREATE ACCOUNT (calls Postgres create_user)
+# CREATE ACCOUNT (Updated with hierarchical permissions and auto-assignment)
 # =========================
 def create_account(request):
+    # Check if user is logged in
+    current_role, current_region_id, current_penro_id, current_cenro_id = get_current_user_info(request)
+    if not current_role:
+        messages.error(request, "You must be logged in to create accounts.")
+        return redirect("login")
+    
+    # Check if user has permission to create accounts
+    allowed_roles = get_allowed_roles_for_user(current_role)
+    if not allowed_roles:
+        messages.error(request, "You don't have permission to create user accounts.")
+        return redirect("login")  # or appropriate dashboard
+    
     if request.method == "POST":
         # Required
         first_name   = (request.POST.get("first_name") or "").strip()
@@ -108,11 +291,6 @@ def create_account(request):
         phone_number = (request.POST.get("phone_number") or "").strip() or None
         profile_pic  = (request.POST.get("profile_pic") or "").strip() or None
 
-        # Office selections (cascading)
-        region_id = request.POST.get("region_id") or None
-        penro_id  = request.POST.get("penro_id") or None
-        cenro_id  = request.POST.get("cenro_id") or None
-
         # Basic validation
         errors = []
         if not first_name: errors.append("First name is required.")
@@ -120,52 +298,135 @@ def create_account(request):
         if gender not in ("Male", "Female", "Other"):
             errors.append("Please pick a valid gender.")
         if not email:     errors.append("Email is required.")
-        if role not in ("Super Admin", "Admin", "PENRO", "CENRO", "Evaluator"):
-            errors.append("Please choose a valid role.")
+        if role not in allowed_roles:
+            errors.append(f"You can only create users with these roles: {', '.join(allowed_roles)}")
         if not username:  errors.append("Username is required.")
         if not password:  errors.append("Password is required.")
         if errors:
             for e in errors: messages.error(request, e)
             return redirect("account-create")
 
-        def to_int_or_none(v):
-            try:
-                return int(v) if v not in (None, "", "null") else None
-            except Exception:
-                return None
+        # Auto-assign office IDs based on current user's role and target role
+        r = None  # region_id
+        p = None  # penro_id  
+        c = None  # cenro_id
 
-        r = to_int_or_none(region_id)
-        p = to_int_or_none(penro_id)
-        c = to_int_or_none(cenro_id)
-
-        # Match office IDs to role rules before calling DB func
         if role == "Super Admin":
+            # Super Admin has no office assignments
             r = p = c = None
-        elif role == "Admin":
-            if not r:
-                messages.error(request, "Admin must be assigned to a Region.")
-                return redirect("account-create")
-            p = c = None
-        elif role == "PENRO":
-            if not p:
-                messages.error(request, "PENRO must be assigned to a PENRO.")
-                return redirect("account-create")
-            r = c = None
-        elif role == "CENRO":
-            if not c:
-                messages.error(request, "CENRO must be assigned to a CENRO.")
-                return redirect("account-create")
-            r = p = None
-        elif role == "Evaluator":
-            if not any([r, p, c]):
-                messages.error(request, "Evaluator must be assigned to Region OR PENRO OR CENRO.")
-                return redirect("account-create")
-            if c:
-                r = p = None
-            elif p:
-                r = c = None
-            else:
+            
+        elif current_role == "super admin":
+            # Super Admin creating other roles - get from form
+            if role == "Admin":
+                # For Admin creation by Super Admin, require region selection from form
+                region_id_from_form = request.POST.get("region_id")
+                try:
+                    r = int(region_id_from_form) if region_id_from_form not in (None, "", "null") else None
+                except:
+                    r = None
+                
+                if not r:
+                    messages.error(request, "Please select a region for the Admin user.")
+                    return redirect("account-create")
+                
                 p = c = None
+            elif role == "PENRO":
+                # Super Admin can also create PENRO - get penro_id from form
+                penro_id_from_form = request.POST.get("penro_id")
+                try:
+                    p = int(penro_id_from_form) if penro_id_from_form not in (None, "", "null") else None
+                except:
+                    p = None
+                
+                if not p:
+                    messages.error(request, "Please select a PENRO office.")
+                    return redirect("account-create")
+                
+                r = c = None
+            
+        elif current_role == "admin":
+            # Admin can create Admin or PENRO - both should inherit admin's region
+            if role == "Admin":
+                r = current_region_id
+                p = c = None
+            elif role == "PENRO":
+                # For PENRO creation, get penro_id from form and inherit admin's region
+                penro_id_from_form = request.POST.get("penro_id")
+                try:
+                    p = int(penro_id_from_form) if penro_id_from_form not in (None, "", "null") else None
+                except:
+                    p = None
+                
+                if not p:
+                    messages.error(request, "Please select a PENRO office.")
+                    return redirect("account-create")
+                    
+                # Verify this PENRO belongs to admin's region
+                with connection.cursor() as cur:
+                    cur.execute("SELECT region_id FROM penros WHERE id = %s;", [p])
+                    row = cur.fetchone()
+                    if not row or row[0] != current_region_id:
+                        messages.error(request, "Selected PENRO does not belong to your region.")
+                        return redirect("account-create")
+                
+                # PENRO should inherit admin's region AND have penro assignment
+                r = current_region_id  # Inherit region from admin
+                c = None
+                
+        elif current_role == "penro":
+            # PENRO can create PENRO or CENRO - both should inherit penro's assignments
+            if role == "PENRO":
+                # Inherit both region and penro from current PENRO user
+                r = current_region_id
+                p = current_penro_id
+                c = None
+            elif role == "CENRO":
+                # For CENRO creation, get cenro_id from form and inherit penro's region
+                cenro_id_from_form = request.POST.get("cenro_id")
+                try:
+                    c = int(cenro_id_from_form) if cenro_id_from_form not in (None, "", "null") else None
+                except:
+                    c = None
+                    
+                if not c:
+                    messages.error(request, "Please select a CENRO office.")
+                    return redirect("account-create")
+                    
+                # Verify this CENRO belongs to penro's office
+                with connection.cursor() as cur:
+                    cur.execute("SELECT penro_id FROM cenros WHERE id = %s;", [c])
+                    row = cur.fetchone()
+                    if not row or row[0] != current_penro_id:
+                        messages.error(request, "Selected CENRO does not belong to your PENRO.")
+                        return redirect("account-create")
+                
+                # Get the region_id for this CENRO through PENRO
+                with connection.cursor() as cur:
+                    cur.execute("""
+                        SELECT p.region_id 
+                        FROM cenros c 
+                        JOIN penros p ON c.penro_id = p.id 
+                        WHERE c.id = %s;
+                    """, [c])
+                    row = cur.fetchone()
+                    if row:
+                        r = row[0]  # Inherit region through PENRO
+                
+                # CENRO should inherit region, penro, AND have cenro assignment
+                p = current_penro_id  # Inherit penro from current user
+                
+        elif current_role == "cenro":
+            # CENRO can create CENRO or Evaluator - both should inherit cenro's full hierarchy
+            if role == "CENRO":
+                # Inherit full hierarchy: region, penro, and cenro
+                r = current_region_id
+                p = current_penro_id  
+                c = current_cenro_id
+            elif role == "Evaluator":
+                # Evaluator assigned to current CENRO inherits full hierarchy
+                r = current_region_id
+                p = current_penro_id
+                c = current_cenro_id
 
         try:
             with transaction.atomic():
@@ -191,8 +452,8 @@ def create_account(request):
                     )
                     new_id = cur.fetchone()[0]
 
-            messages.success(request, f"Account created (ID: {new_id}). You can now log in.")
-            return redirect("login")
+            messages.success(request, f"Account successfully created! User can now log in.")
+            return redirect("account-create")  # Stay on page to create more users
 
         except DatabaseError as e:
             msg = getattr(e, "pgerror", None) or str(e)
@@ -202,37 +463,104 @@ def create_account(request):
                 messages.error(request, f"DB error: {msg}")
             return redirect("account-create")
 
-    # GET → show form with Regions
+    # GET → show form with appropriate options based on current user's role
+    available_offices = get_available_offices_for_user(current_role, current_region_id, current_penro_id, current_cenro_id)
+    
+    # Get current user's office names for display
+    current_user_region_name = None
+    current_user_penro_name = None
+    current_user_cenro_name = None
+    
+    with connection.cursor() as cur:
+        if current_region_id:
+            cur.execute("SELECT name FROM regions WHERE id = %s;", [current_region_id])
+            row = cur.fetchone()
+            if row:
+                current_user_region_name = row[0]
+        
+        if current_penro_id:
+            cur.execute("SELECT name FROM penros WHERE id = %s;", [current_penro_id])
+            row = cur.fetchone()
+            if row:
+                current_user_penro_name = row[0]
+        
+        if current_cenro_id:
+            cur.execute("SELECT name FROM cenros WHERE id = %s;", [current_cenro_id])
+            row = cur.fetchone()
+            if row:
+                current_user_cenro_name = row[0]
+    
     context = {
-        "regions": _fetch_regions(),
-        "roles":   ["Super Admin", "Admin", "PENRO", "CENRO", "Evaluator"],
+        "regions": available_offices["regions"],
+        "penros": available_offices["penros"],
+        "cenros": available_offices["cenros"],
+        "roles": allowed_roles,
         "genders": ["Male", "Female", "Other"],
+        "current_user_role": current_role.title(),
+        # Current user's office assignments for auto-inheritance
+        "current_user_region_id": current_region_id,
+        "current_user_penro_id": current_penro_id,
+        "current_user_cenro_id": current_cenro_id,
+        "current_user_region_name": current_user_region_name,
+        "current_user_penro_name": current_user_penro_name,
+        "current_user_cenro_name": current_user_cenro_name,
     }
     return render(request, "create_account.html", context)
 
-
 # =========================
-# AJAX APIs for cascading selects (pure SQL)
+# AJAX APIs for cascading selects (Updated with permission checks)
 # =========================
 def api_penros_by_region(request, region_id):
+    current_role, current_region_id, current_penro_id, current_cenro_id = get_current_user_info(request)
+    if not current_role:
+        return HttpResponseBadRequest("Not authenticated")
+    
     try:
         rid = int(region_id)
     except Exception:
         return HttpResponseBadRequest("Invalid region id")
-
+    
+    # Check if user has access to this region
+    if current_role == "admin" and current_region_id != rid:
+        return HttpResponseBadRequest("Access denied to this region")
+    
     with connection.cursor() as cur:
-        cur.execute("SELECT id, name FROM penros WHERE region_id=%s ORDER BY name;", [rid])
+        if current_role in ["super admin", "admin"]:
+            cur.execute("SELECT id, name FROM penros WHERE region_id=%s ORDER BY name;", [rid])
+        else:
+            # For other roles, return empty list
+            return JsonResponse({"items": []})
+        
         items = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
     return JsonResponse({"items": items})
 
-
 def api_cenros_by_penro(request, penro_id):
+    current_role, current_region_id, current_penro_id, current_cenro_id = get_current_user_info(request)
+    if not current_role:
+        return HttpResponseBadRequest("Not authenticated")
+    
     try:
         pid = int(penro_id)
     except Exception:
         return HttpResponseBadRequest("Invalid penro id")
-
+    
+    # Check if user has access to this PENRO
+    if current_role == "admin":
+        # Check if this PENRO belongs to admin's region
+        with connection.cursor() as cur:
+            cur.execute("SELECT region_id FROM penros WHERE id = %s;", [pid])
+            row = cur.fetchone()
+            if not row or row[0] != current_region_id:
+                return HttpResponseBadRequest("Access denied to this PENRO")
+    elif current_role == "penro" and current_penro_id != pid:
+        return HttpResponseBadRequest("Access denied to this PENRO")
+    
     with connection.cursor() as cur:
-        cur.execute("SELECT id, name FROM cenros WHERE penro_id=%s ORDER BY name;", [pid])
+        if current_role in ["super admin", "admin", "penro"]:
+            cur.execute("SELECT id, name FROM cenros WHERE penro_id=%s ORDER BY name;", [pid])
+        else:
+            # For other roles, return empty list
+            return JsonResponse({"items": []})
+        
         items = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
     return JsonResponse({"items": items})
