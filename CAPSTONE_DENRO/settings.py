@@ -41,7 +41,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'DENRO.apps.DenroConfig'
+    'DENRO.apps.DenroConfig',
+     "rest_framework",
+    "rest_framework.authtoken",
+    "corsheaders",  
+    
 ]
 
 MIDDLEWARE = [
@@ -59,7 +63,7 @@ ROOT_URLCONF = 'CAPSTONE_DENRO.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / "DENRO" / "templates"], 
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -74,7 +78,9 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'CAPSTONE_DENRO.wsgi.application'
 
+# AUTH_USER_MODEL = "DENRO.User"
 
+# LOGIN_URL = '/login/'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
@@ -100,7 +106,7 @@ else:
             'PORT': os.getenv('DB_PORT'),
             'OPTIONS': {
                 'client_encoding': 'UTF8',
-                'sslmode': 'require',
+                'sslmode': 'disable',
                 'options': '-c timezone=Asia/Manila',
             },
         }

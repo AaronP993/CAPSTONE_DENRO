@@ -5,59 +5,283 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'styles/cenro_excess.css' %}">
+
+<style>
+  /* Optional: key inline styling for filters, tables, pagination, and modal */
+  .filters {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .filters input, .filters select, .filters button {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  .filters button {
+    background: #007bff;
+    color: white;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+  .filters button:hover { background: #0056b3; }
+
+  .section-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #004c3f;
+    margin-bottom: 10px;
+  }
+  .table-wrap {
+    overflow-x: auto;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    background: #fff;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th, td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+  }
+  th {
+    background: #007bff;
+    color: white;
+  }
+  tr:nth-child(even) {
+    background: #f9f9f9;
+  }
+  tr:hover {
+    background: #f1f7ff;
+  }
+
+  /* Pagination */
+  .pagination {
+    margin: 25px 0;
+    text-align: center;
+  }
+  .pagination a, .pagination span {
+    display: inline-block;
+    margin: 0 4px;
+    padding: 8px 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #007bff;
+    background: #fff;
+  }
+  .pagination a:hover, .pagination .current {
+    background: #007bff;
+    color: white;
+  }
+
+  /* Modal */
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0; top: 0;
+    width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.5);
+  }
+  .modal-content {
+    background-color: #fff;
+    margin: 5% auto;
+    padding: 20px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 800px;
+    position: relative;
+  }
+  .close {
+    position: absolute;
+    top: 10px; right: 15px;
+    font-size: 28px;
+    color: #999;
+    cursor: pointer;
+  }
+  .close:hover { color: black; }
+</style>
+
 {% endblock %}
 
 {% block content %}
-<section class="act panel">
-  <h1 class="act__title">ACTIVITY LOGS</h1>
+<div class="filters">
+    <form method="get">
+        <input type="text" name="q" placeholder="Search..." value="{{ request.GET.q }}">
+        <select name="role" id="role">
+            <option value="">All Roles</option>
+            <option value="CENRO" {% if request.GET.role == 'CENRO' %}selected{% endif %}>CENRO</option>
+            <option value="EVALUATOR" {% if request.GET.role == 'EVALUATOR' %}selected{% endif %}>Evaluator</option>
+        </select>
+        <label for="region" id="regionLabel" style="display:none;">Select Office:</label>
+        <select name="region" id="region" style="display:none;">
+            <option value="">All Offices</option>
+        </select>
+        <input type="date" name="from" value="{{ request.GET.from }}">
+        <button type="submit">Filter</button>
+    </form>
+</div>
 
-  <!-- Charts row -->
-  <div class="act__charts">
-    <div class="card">
-      <h2 class="card__title">By Category</h2>
-      <!-- drop in your chart component/canvas here -->
-      <div class="chart ph">Pie Chart Placeholder</div>
-    </div>
-
-    <div class="card">
-      <h2 class="card__title">Product Sales</h2>
-      <!-- drop in your chart component/canvas here -->
-      <div class="chart ph">Bar Chart Placeholder</div>
-    </div>
+<!-- User Details Modal -->
+<div id="userModal" class="modal" style="display:none;">
+  <div class="modal-content">
+    <span class="close">&times;</span>
+    <h3>User Recent Actions</h3>
+    <div id="userDetailsContent"></div>
   </div>
+</div>
 
-  <!-- Logs table -->
-  <div class="card">
-    <div class="table-wrap">
-      <table class="table table--logs">
+<!-- Activity Logs Table -->
+<div class="section-title">Activity Logs</div>
+<div class="table-wrap">
+    <table>
         <thead>
-          <tr>
-            <th>Type</th>
-            <th>Event</th>
-            <th>Subject</th>
-            <th>User</th>
-            <th>Logged At</th>
-          </tr>
+            <tr>
+                <th>User</th>
+                <th>Action</th>
+                <th>Details</th>
+                <th>Latitude</th>
+                <th>Longitude</th>
+                <th>Timestamp</th>
+            </tr>
         </thead>
         <tbody>
-          {% for log in logs %}
-          <tr>
-            <td>
-              <span class="badge {% if log.type|lower == 'access' %}badge--access{% else %}badge--resource{% endif %}">
-                {{ log.type }}
-              </span>
-            </td>
-            <td>{{ log.event }}</td>
-            <td>{{ log.subject }}</td>
-            <td>{{ log.user }}</td>
-            <td>{{ log.logged_at }}</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="5" class="empty">No logs yet.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
+        {% for log in page_obj %}
+            {% if log.user.role == "CENRO" or log.user.role == "EVALUATOR" %}
+            <tr>
+                <td>
+                    <a href="#" class="user-link" data-user-id="{{ log.user.id }}">
+                        {{ log.user.username }}
+                    </a>
+                </td>
+                <td>{{ log.action }}</td>
+                <td>{{ log.details }}</td>
+                <td>{{ log.latitude }}</td>
+                <td>{{ log.longitude }}</td>
+                <td>{{ log.created_at|date:"M d, Y H:i" }}</td>
+            </tr>
+            {% endif %}
+        {% empty %}
+        <tr>
+            <td colspan="6">No logs found</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+<div class="pagination">
+    {% if page_obj.has_previous %}
+        <a href="?page=1{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">« First</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">‹ Prev</a>
+    {% endif %}
+
+    {% for num in page_obj.paginator.page_range %}
+        {% if num == page_obj.number %}
+            <span class="current">{{ num }}</span>
+        {% elif num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+            <a href="?page={{ num }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">{{ num }}</a>
+        {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next ›</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Last »</a>
+    {% endif %}
+</div>
+
+<!-- Modal + Dropdown Scripts -->
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+  const modal = document.getElementById("userModal");
+  const closeBtn = modal.querySelector(".close");
+  const detailsContainer = document.getElementById("userDetailsContent");
+
+  document.querySelectorAll(".user-link").forEach(link => {
+    link.addEventListener("click", function(e) {
+      e.preventDefault();
+      const userId = this.dataset.userId;
+      const url = `/activitylogs/user/${userId}/`;
+
+      fetch(url, { headers: {'Accept': 'application/json'} })
+      .then(res => res.json())
+      .then(data => {
+        const table = document.createElement('table');
+        table.innerHTML = `
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>Details</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${data.logs.map(log => `
+              <tr>
+                <td>${log.action}</td>
+                <td>${log.details}</td>
+                <td>${log.created_at}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        `;
+        detailsContainer.innerHTML = '';
+        detailsContainer.appendChild(table);
+        modal.style.display = "block";
+      })
+      .catch(error => {
+        console.error('Error fetching user details:', error);
+        detailsContainer.innerHTML = '<p>Error loading user details.</p>';
+        modal.style.display = "block";
+      });
+    });
+  });
+
+  closeBtn.onclick = function() { modal.style.display = "none"; }
+  window.onclick = function(event) { if (event.target == modal) modal.style.display = "none"; }
+});
+</script>
+
+<script src="{% static 'js/admin_dashboard.js' %}"></script>
+
+<script>
+function updateRegionDropdown() {
+    const roleSelect = document.getElementById('role');
+    const regionSelect = document.getElementById('region');
+    const regionLabel = document.getElementById('regionLabel');
+    const selectedRole = roleSelect.value;
+
+    if (selectedRole === 'EVALUATOR' || selectedRole === 'CENRO') {
+        regionSelect.style.display = 'inline-block';
+        regionLabel.style.display = 'inline-block';
+        regionSelect.innerHTML = '<option value="">All Offices</option>';
+        let options = ['Argao', 'Ayungon', 'Cebu', 'Dumaguete', 'Talibon', 'Tagbiliran'];
+        options.forEach(option => {
+            const opt = document.createElement('option');
+            opt.value = option;
+            opt.textContent = option;
+            if ('{{ request.GET.region }}' === option) {
+                opt.selected = true;
+            }
+            regionSelect.appendChild(opt);
+        });
+    } else {
+        regionSelect.style.display = 'none';
+        regionLabel.style.display = 'none';
+        regionSelect.value = '';
+    }
+}
+document.getElementById('role').addEventListener('change', updateRegionDropdown);
+updateRegionDropdown();
+</script>
+
 {% endblock %}

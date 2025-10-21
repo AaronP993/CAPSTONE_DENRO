@@ -1,0 +1,327 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PENRO Inventory</title>
+    <link rel="stylesheet" href="{% static 'styles/dashboard.css' %}" />
+    <link rel="stylesheet" href="{% static 'styles/sidenav.css' %}" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    />
+    <style>
+      .btn {
+        padding: 8px 16px;
+        margin: 2px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        text-transform: uppercase;
+        transition: all 0.3s ease;
+        min-width: 80px;
+      }
+
+      .btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      .btn-accept {
+        background-color: #28a745;
+        color: white;
+      }
+
+      .btn-accept:hover {
+        background-color: #218838;
+      }
+
+      .btn-decline {
+        background-color: #dc3545;
+        color: white;
+      }
+
+      .btn-decline:hover {
+        background-color: #c82333;
+      }
+
+      .btn:focus {
+        outline: none;
+        box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+      }
+
+      td form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+
+      select,
+      input[type="date"] {
+        padding: 0.5rem;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        min-width: 180px;
+      }
+
+      label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+      }
+
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        margin-bottom: 2rem;
+      }
+
+      .filter-group {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .filter-button {
+        display: flex;
+        align-items: flex-end;
+      }
+
+      .top-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+      }
+
+      /* Table styles */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      th,
+      td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid #dee2e6;
+      }
+
+      th {
+        background-color: #007bff;
+        color: white;
+        text-transform: uppercase;
+        font-size: 13px;
+      }
+
+      tr:hover {
+        background-color: #f1f1f1;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Sidebar -->
+    {% include 'includes/sidenav/sidenav_penro.html' %}
+
+    <!-- Main Content -->
+    <div class="content">
+      <!-- Top Bar -->
+      <div class="top-bar">
+        <h2>PENRO Inventory</h2>
+        <div class="notification">
+          <button id="notifBtn" class="bell-btn">
+            🔔
+            {% if unread_count > 0 %}
+            <span class="badge">{{ unread_count }}</span>
+            {% endif %}
+          </button>
+          <div class="notif-dropdown" id="notifDropdown">
+            <h4>Notifications</h4>
+            <ul>
+              {% for note in notifications %}
+              <li>
+                {{ note.message }} <br />
+                <small>{{ note.created_at|date:"M d, Y H:i" }}</small>
+                <form
+                  method="post"
+                  action="{% url 'mark_notification_read' note.id %}"
+                >
+                  {% csrf_token %}
+                  <button type="submit" class="mark-btn">Mark as read</button>
+                </form>
+              </li>
+              {% empty %}
+              <li>No new notifications</li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="filters">
+        <form
+          method="get"
+          style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap"
+        >
+          <!-- Protected Area -->
+          <div class="filter-group">
+            <label for="protected_area">Protected Area:</label>
+            <select id="protected_area" name="protected_area" onchange="this.form.submit()">
+              <option value="">All</option>
+              <option
+                value="CCPL"
+                {% if request.GET.protected_area == "CCPL" %}selected{% endif %}
+              >
+                CCPL
+              </option>
+              {% for area in protected_areas %}
+              <option
+                value="{{ area.id }}"
+                {% if request.GET.protected_area == area.id|stringformat:"s" %}
+                selected
+                {% endif %}
+              >
+                {{ area.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Land Classification -->
+          <div class="filter-group">
+            <label for="land_classification">Land Classification:</label>
+            <select id="land_classification" name="land_classification">
+              <option value="">All</option>
+              <option value="Timberland">Timberland</option>
+              <option value="Forestland">Forestland</option>
+              <option value="A&D">A&D</option>
+              <option value="National Park">National Park</option>
+            </select>
+          </div>
+
+          <!-- PA Management Zone -->
+          <div class="filter-group">
+            <label for="pa_zone">PA Management Zone:</label>
+            <select id="pa_zone" name="pa_zone">
+              <option value="">All</option>
+              <option value="MUZ">MUZ</option>
+              <option value="SPZ">SPZ</option>
+            </select>
+          </div>
+
+          <!-- Easement -->
+          <div class="filter-group">
+            <label for="easement">Easement:</label>
+            <select id="easement" name="easement">
+              <option value="">All</option>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+            </select>
+          </div>
+
+          <!-- Establishment Status -->
+          <div class="filter-group">
+            <label for="establishment">Establishment Status:</label>
+            <select id="establishment" name="establishment">
+              <option value="">All</option>
+              <option value="Functional">Functional</option>
+              <option value="Under Construction">Under Construction</option>
+              <option value="Dilapidated">Dilapidated</option>
+              <option value="Abandoned">Abandoned</option>
+            </select>
+          </div>
+
+          <!-- Establishment Type -->
+          <div class="filter-group">
+            <label for="establishment_type">Establishment Type:</label>
+            <select id="establishment_type" name="establishment_type">
+              <option value="">All</option>
+              <option value="Hotel">Hotel</option>
+              <option value="Room Accommodation / Lodging / Rest House">
+                Room Accommodation / Lodging / Rest House
+              </option>
+              <option value="Coffee Shop">Coffee Shop</option>
+              <option value="Restaurant">Restaurant</option>
+              <option value="Water Refilling Station">Water Refilling Station</option>
+              <option value="Merchandising">Merchandising</option>
+              <option value="Motor Shop">Motor Shop</option>
+              <option value="Gasoline Station">Gasoline Station</option>
+              <option value="Pharmacy / Drugstore">Pharmacy / Drugstore</option>
+              <option value="Resort">Resort</option>
+              <option value="Recreational">Recreational</option>
+              <option value="Nature Camp">Nature Camp</option>
+            </select>
+          </div>
+
+          <!-- Report Date Range -->
+          <div class="filter-group">
+            <label for="from">Report Date From:</label>
+            <input type="date" id="from" name="from" value="{{ request.GET.from }}" />
+          </div>
+
+          <div class="filter-group">
+            <label for="to">Report Date To:</label>
+            <input type="date" id="to" name="to" value="{{ request.GET.to }}" />
+          </div>
+
+          <!-- Filter Button -->
+          <div class="filter-button">
+            <button
+              type="submit"
+              style="
+                background: #007bff;
+                color: white;
+                border: none;
+                padding: 0.5rem 1rem;
+                border-radius: 4px;
+                cursor: pointer;
+              "
+            >
+              Filter
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- CCPL Table -->
+      {% if request.GET.protected_area == "CCPL" %}
+      <h3>CCPL Inventory</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Evaluator Name</th>
+            <th>Proponent / Owner Name</th>
+            <th>Submitted Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for record in ccpl_reports %}
+          <tr>
+            <td>{{ record.enumerator.get_full_name }}</td>
+            <td>{{ record.profile.proponent_name }}</td>
+            <td>{{ record.profile.report_date|date:"M d, Y" }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="3" style="text-align:center;">No reports found for CCPL.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+
+    <!-- JS -->
+    <script src="{% static 'js/admin_dashboard.js' %}"></script>
+  </body>
+</html>

@@ -19,12 +19,21 @@ urlpatterns = [
 
     # Dashboards
     path('sa/dashboard/',     views.superadmin_dashboard, name='SA-dashboard'),
-    path('admin/dashboard/',  views.admin_dashboard,      name='Admin-dashboard'),
-    path('penro/dashboard/',  views.penro_dashboard,      name='PENRO-dashboard'),
-    path('cenro/dashboard/',  views.cenro_dashboard,      name='CENRO-dashboard'),
+    path('admin/dashboard/',  views.admin_dashboard,      name='Admin_dashboard'),
 
+    path('penro/dashboard/',  views.penro_dashboard,      name='PENRO_dashboard'),
+    # PENRO subpages
+    path('penro/activity-logs/', views.penro_activity_logs, name='PENRO_activitylogs'),
+    path('penro/inventory/', views.penro_inventory, name='PENRO_inventory'),
+    path('penro/create-account/', views.create_account_view, name='PENRO_create_account'),
+   
+    path('cenro/dashboard/',  views.cenro_dashboard,      name='CENRO_dashboard'),
     # ✅ CENRO subpages (match the names used in your templates)
     path('cenro/activity-logs/', views.cenro_activitylogs, name='CENRO-activitylogs'),
     path('cenro/reports/',       views.cenro_reports,      name='CENRO-reports'),
     path('cenro/templates/',     views.cenro_templates,    name='CENRO-templates'),
+
+    # Notification URL
+    path('mark-notification-read/<int:notification_id>/', views.mark_notification_read, name='mark_notification_read'),
 ]
+

@@ -1,0 +1,612 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PENRO Create Account</title>
+    <link rel="stylesheet" href="{% static 'styles/dashboard.css' %}" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{% static 'styles/sidebar.css' %}" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Added notification bell CSS styling -->
+    <style>
+      .notification {
+        position: relative;
+        display: inline-block;
+      }
+
+      .bell-btn {
+        background-color: transparent;
+        border: none;
+        cursor: pointer;
+        font-size: 22px;
+        position: relative;
+        padding: 8px;
+        border-radius: 4px;
+        transition: background-color 0.3s ease;
+      }
+
+      .bell-btn:hover {
+        background-color: rgba(0, 0, 0, 0.1);
+      }
+
+      .badge {
+        background-color: #dc3545;
+        color: white;
+        border-radius: 50%;
+        padding: 2px 6px;
+        font-size: 12px;
+        position: absolute;
+        top: -2px;
+        right: -2px;
+        min-width: 18px;
+        text-align: center;
+      }
+
+      .notif-dropdown {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: 100%;
+        background-color: white;
+        box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        width: 320px;
+        max-height: 400px;
+        overflow-y: auto;
+        padding: 16px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        margin-top: 5px;
+      }
+
+      .notif-dropdown.show {
+        display: block;
+      }
+
+
+      .notif-dropdown li {
+        margin-bottom: 12px;
+        padding: 12px;
+        border-bottom: 1px solid #f0f0f0;
+        border-radius: 4px;
+        background-color: #f8f9fa;
+      }
+
+      .notif-dropdown li:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+      }
+
+      @media (max-width: 768px) {
+        .notif-dropdown {
+          width: 280px;
+          right: -50px;
+        }
+      }
+
+      /* Modal Styles for Popup */
+      .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+      }
+
+      .modal-content {
+        background-color: #fefefe;
+        margin: 5% auto;
+        padding: 20px;
+        border: 1px solid #888;
+        width: 90%;
+        max-width: 800px;
+        border-radius: 8px;
+        position: relative;
+      }
+
+      .close {
+        color: #aaa;
+        position: absolute;
+        top: 10px;
+        right: 15px;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+      }
+
+      .close:hover,
+      .close:focus {
+        color: black;
+        text-decoration: none;
+      }
+
+      /* Alert Styles */
+      .alert {
+        opacity: 1;
+        transition: opacity 0.5s ease-out;
+      }
+
+      .alert-success {
+        background-color: #d4edda;
+        color: #155724;
+        border-color: #c3e6cb;
+      }
+
+      .alert-error {
+        background-color: #f8d7da;
+        color: #721c24;
+        border-color: #f5c6cb;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Sidebar -->
+    {% include 'includes/sidenav/sidenav_penro.html' %}
+
+    <!-- Main Content -->
+    <div class="content">
+      <!-- Top Bar -->
+      <div class="top-bar">
+        <h2>Create New Account</h2>
+        <!-- Added notification bell icon with same functionality as dashboard -->
+        <div class="notification">
+          <button id="notifBtn" class="bell-btn">
+            🔔
+          </button>
+          <div class="notif-dropdown" id="notifDropdown">
+            <h4>Notifications</h4>
+            <ul>
+              <li>No new notifications</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div id="messages" style="margin-bottom: 1rem">
+        {% if messages %} {% for message in messages %}
+        <div
+          class="alert alert-{{ message.tags }}"
+          style="
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            border: 1px solid;
+            font-weight: 500;
+          "
+        >
+          {{ message }}
+        </div>
+        {% endfor %} {% endif %}
+      </div>
+
+      <!-- Manual Account Creation -->
+      <div
+        class="account-creation-container"
+        style="
+          background: #fff;
+          padding: 1.5rem;
+          border-radius: 8px;
+          border: 1px solid #e0e0e0;
+          margin-bottom: 2rem;
+        "
+      >
+        <h3 style="margin-bottom: 1rem; color: #333">Create New Account</h3>
+        <form
+          method="post"
+          action="{% url 'account-create' %}"
+          style="
+            background: #f8f9fa;
+            padding: 2rem;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          "
+        >
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_account" />
+
+          <!-- Personal Information Section -->
+          <div style="margin-bottom: 2rem">
+            <h4
+              style="
+                margin-bottom: 1rem;
+                color: #495057;
+                font-size: 1.1rem;
+                border-bottom: 2px solid #007bff;
+                padding-bottom: 0.5rem;
+              "
+            >
+              Personal Information
+            </h4>
+            <div
+              style="
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr;
+                gap: 1rem;
+                margin-bottom: 1rem;
+              "
+            >
+              <div>
+                <label
+                  for="first_name"
+                  style="
+                    display: block;
+                    margin-bottom: 0.5rem;
+                    font-weight: 600;
+                    color: #495057;
+                  "
+                  >First Name:</label
+                >
+                <input
+                  type="text"
+                  id="first_name"
+                  name="first_name"
+                  required
+                  style="
+                    width: 100%;
+                    padding: 0.75rem;
+                    border: 1px solid #ced4da;
+                    border-radius: 6px;
+                    font-size: 0.95rem;
+                    transition: border-color 0.3s ease;
+                  "
+                />
+              </div>
+              <div>
+                <label
+                  for="last_name"
+                  style="
+                    display: block;
+                    margin-bottom: 0.5rem;
+                    font-weight: 600;
+                    color: #495057;
+                  "
+                  >Last Name:</label
+                >
+                <input
+                  type="text"
+                  id="last_name"
+                  name="last_name"
+                  required
+                  style="
+                    width: 100%;
+                    padding: 0.75rem;
+                    border: 1px solid #ced4da;
+                    border-radius: 6px;
+                    font-size: 0.95rem;
+                    transition: border-color 0.3s ease;
+                  "
+                />
+              </div>
+              <div>
+                <label
+                  for="gender"
+                  style="
+                    display: block;
+                    margin-bottom: 0.5rem;
+                    font-weight: 600;
+                    color: #495057;
+                  "
+                  >Gender:</label
+                >
+                <select
+                  id="gender"
+                  name="gender"
+                  style="
+                    width: 100%;
+                    padding: 0.75rem;
+                    border: 1px solid #ced4da;
+                    border-radius: 6px;
+                    font-size: 0.95rem;
+                    background-color: white;
+                    transition: border-color 0.3s ease;
+                  "
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+            </div>
+            <div
+              style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem"
+            >
+              <div>
+                <label
+                  for="email"
+                  style="
+                    display: block;
+                    margin-bottom: 0.5rem;
+                    font-weight: 600;
+                    color: #495057;
+                  "
+                  >Email Address:</label
+                >
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  required
+                  style="
+                    width: 100%;
+                    padding: 0.75rem;
+                    border: 1px solid #ced4da;
+                    border-radius: 6px;
+                    font-size: 0.95rem;
+                    transition: border-color 0.3s ease;
+                  "
+                />
+              </div>
+              <div>
+                <label
+                  for="phone"
+                  style="
+                    display: block;
+                    margin-bottom: 0.5rem;
+                    font-weight: 600;
+                    color: #495057;
+                  "
+                  >Phone Number:</label
+                >
+                <input
+                  type="tel"
+                  id="phone"
+                  name="phone"
+                  style="
+                    width: 100%;
+                    padding: 0.75rem;
+                    border: 1px solid #ced4da;
+                    border-radius: 6px;
+                    font-size: 0.95rem;
+                    transition: border-color 0.3s ease;
+                  "
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Account Information Section -->
+          <div style="margin-bottom: 2rem">
+            <h4
+              style="
+                margin-bottom: 1rem;
+                color: #495057;
+                font-size: 1.1rem;
+                border-bottom: 2px solid #28a745;
+                padding-bottom: 0.5rem;
+              "
+            >
+              Account Information
+            </h4>
+            <div
+              style="
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1rem;
+                margin-bottom: 1rem;
+              "
+            >
+              <div>
+                <label
+                  for="username"
+                  style="
+                    display: block;
+                    margin-bottom: 0.5rem;
+                    font-weight: 600;
+                    color: #495057;
+                  "
+                  >Username:</label
+                >
+                <input
+                  type="text"
+                  id="username"
+                  name="username"
+                  required
+                  style="
+                    width: 100%;
+                    padding: 0.75rem;
+                    border: 1px solid #ced4da;
+                    border-radius: 6px;
+                    font-size: 0.95rem;
+                    transition: border-color 0.3s ease;
+                  "
+                />
+              </div>
+              <div>
+                <label
+                  for="id_number"
+                  style="
+                    display: block;
+                    margin-bottom: 0.5rem;
+                    font-weight: 600;
+                    color: #495057;
+                  "
+                  >ID Number:</label
+                >
+                <input
+                  type="text"
+                  id="id_number"
+                  name="id_number"
+                  required
+                  style="
+                    width: 100%;
+                    padding: 0.75rem;
+                    border: 1px solid #ced4da;
+                    border-radius: 6px;
+                    font-size: 0.95rem;
+                    transition: border-color 0.3s ease;
+                  "
+                />
+              </div>
+            </div>
+            <div
+              style="
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1rem;
+                margin-bottom: 1rem;
+              "
+            >
+              <div>
+                <label
+                  for="password"
+                  style="
+                    display: block;
+                    margin-bottom: 0.5rem;
+                    font-weight: 600;
+                    color: #495057;
+                  "
+                  >Password:</label
+                >
+                <input
+                  type="password"
+                  id="password"
+                  name="password"
+                  required
+                  style="
+                    width: 100%;
+                    padding: 0.75rem;
+                    border: 1px solid #ced4da;
+                    border-radius: 6px;
+                    font-size: 0.95rem;
+                    transition: border-color 0.3s ease;
+                  "
+                />
+              </div>
+              <div>
+                <label
+                  for="role"
+                  style="
+                    display: block;
+                    margin-bottom: 0.5rem;
+                    font-weight: 600;
+                    color: #495057;
+                  "
+                  >Role:</label
+                >
+                <select
+                  id="role"
+                  name="role"
+                  required
+                  style="
+                    width: 100%;
+                    padding: 0.75rem;
+                    border: 1px solid #ced4da;
+                    border-radius: 6px;
+                    font-size: 0.95rem;
+                    background-color: white;
+                    transition: border-color 0.3s ease;
+                  "
+                >
+                  <option value="">Select Role</option>
+                  <option value="CENRO">CENRO</option>
+                  <option value="EVALUATOR">EVALUATOR</option>
+                </select>
+              </div>
+            </div>
+            <div
+              id="regionContainer"
+              style="display: none; margin-bottom: 1rem"
+            >
+              <label
+                for="region"
+                style="
+                  display: block;
+                  margin-bottom: 0.5rem;
+                  font-weight: 600;
+                  color: #495057;
+                "
+                >Office location:</label
+              >
+              <select
+                id="regionSelect"
+                name="region"
+                style="
+                  width: 100%;
+                  padding: 0.75rem;
+                  border: 1px solid #ced4da;
+                  border-radius: 6px;
+                  font-size: 0.95rem;
+                  background-color: white;
+                  transition: border-color 0.3s ease;
+                "
+              >
+                <option value="">Select Office</option>
+                <option value="Cebu City">Cebu City</option>
+                <option value="Argao">Argao</option>
+                <option value="Talibon">Talibon</option>
+                <option value="Tagbiliran City">Tagbiliran City</option>
+                <option value="Ayungon">Ayungon</option>
+                <option value="Dumaguete City">Dumaguete City</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Form Actions -->
+          <div
+            style="
+              display: flex;
+              gap: 1rem;
+              justify-content: flex-end;
+              padding-top: 1rem;
+              border-top: 1px solid #dee2e6;
+            "
+          >
+            <button
+              type="submit"
+              style="
+                background: #28a745;
+                color: white;
+                border: none;
+                padding: 0.75rem 1.5rem;
+                border-radius: 6px;
+                cursor: pointer;
+                font-weight: 500;
+                transition: background-color 0.3s ease;
+              "
+            >
+              Create Account
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- JS -->
+    <script src="{% static 'js/penro.js' %}"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const roleSelect = document.getElementById("role");
+        const regionContainer = document.getElementById("regionContainer");
+        const regionSelect = document.getElementById("regionSelect");
+
+        roleSelect.addEventListener("change", function () {
+          if (this.value === "CENRO" || this.value === "EVALUATOR") {
+            regionContainer.style.display = "block";
+            regionSelect.required = true;
+          } else {
+            regionContainer.style.display = "none";
+            regionSelect.required = false;
+            regionSelect.value = "";
+          }
+        });
+
+        // Auto-hide messages after 3 seconds
+        const messages = document.querySelectorAll(".alert");
+        messages.forEach(function (message) {
+          setTimeout(function () {
+            message.style.opacity = "0";
+            setTimeout(function () {
+              message.style.display = "none";
+            }, 500); // Wait for fade out transition
+          }, 3000); // 3 seconds
+        });
+      });
+    </script>
+  </body>
+</html>

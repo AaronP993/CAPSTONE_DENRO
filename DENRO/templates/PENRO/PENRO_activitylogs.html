@@ -1,0 +1,376 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PENRO Activity Logs</title>
+    <link rel="stylesheet" href="{% static 'styles/dashboard.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{% static 'styles/sidebar.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- Added notification bell CSS styling -->
+    <style>
+        .notification {
+            position: relative;
+            display: inline-block;
+        }
+
+        .bell-btn {
+            background-color: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 22px;
+            position: relative;
+            padding: 8px;
+            border-radius: 4px;
+            transition: background-color 0.3s ease;
+        }
+
+        .bell-btn:hover {
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+
+        .badge {
+            background-color: #dc3545;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 12px;
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            min-width: 18px;
+            text-align: center;
+        }
+
+        .notif-dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            background-color: white;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 1000;
+            width: 320px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            margin-top: 5px;
+        }
+
+        .notif-dropdown.show {
+            display: block;
+        }
+
+        .notif-dropdown h4 {
+            margin: 0 0 12px 0;
+            font-size: 16px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+
+        .notif-dropdown ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .notif-dropdown li {
+            margin-bottom: 12px;
+            padding: 12px;
+            border-bottom: 1px solid #f0f0f0;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+        }
+
+        .notif-dropdown li:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+
+        .mark-btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 8px;
+            transition: background-color 0.3s ease;
+        }
+
+        .mark-btn:hover {
+            background-color: #0056b3;
+        }
+
+        @media (max-width: 768px) {
+            .notif-dropdown {
+                width: 280px;
+                right: -50px;
+            }
+        }
+
+        /* Modal Styles for Popup */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 800px;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .close {
+            color: #aaa;
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    {% include 'includes/sidenav/sidenav_penro.html' %}
+
+    <!-- Main Content -->
+    <div class="content">
+        <!-- Top Bar -->
+        <div class="top-bar">
+            <h2>Activity Logs</h2>
+            <!-- Added notification bell icon with same functionality as dashboard -->
+            <div class="notification">
+                <button id="notifBtn" class="bell-btn">
+                    🔔 {% if unread_count > 0 %}
+                    <span class="badge">{{ unread_count }}</span>
+                    {% endif %}
+                </button>
+                <div class="notif-dropdown" id="notifDropdown">
+                    <h4>Notifications</h4>
+                    <ul>
+                        {% for note in notifications %}
+                        <li>
+                            {{ note.message }} <br />
+                            <small>{{ note.created_at|date:"M d, Y H:i" }}</small>
+                            <form method="post" action="{% url 'mark_notification_read' note.id %}">
+                                {% csrf_token %}
+                                <button type="submit" class="mark-btn">Mark as read</button>
+                            </form>
+                        </li>
+                        {% empty %}
+                        <li>No new notifications</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters">
+            <form method="get">
+                <input type="text" name="q" placeholder="Search..." value="{{ request.GET.q }}">
+                <select name="role" id="role">
+                    <option value="">All Roles</option>
+                    <option value="PENRO" {% if request.GET.role == 'PENRO' %}selected{% endif %}>PENRO</option>
+                    <option value="CENRO" {% if request.GET.role == 'CENRO' %}selected{% endif %}>CENRO</option>
+                    <option value="EVALUATOR" {% if request.GET.role == 'EVALUATOR' %}selected{% endif %}>Evaluator</option>
+                </select>
+                <label for="region" id="regionLabel" style="display:none;">Select Office:</label>
+                <select name="region" id="region" style="display:none;">
+                    <option value="">All Offices</option>
+                </select>
+                <input type="date" name="from" value="{{ request.GET.from }}">
+                <button type="submit">Filter</button>
+            </form>
+        </div>
+
+        <!-- User Details Modal -->
+        <div id="userModal" class="modal" style="display:none;">
+          <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>User Recent Actions</h3>
+            <div id="userDetailsContent">
+              <!-- JS will inject logs here -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Activity Logs Table -->
+        <div class="section-title">Activity Logs</div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Action</th>
+                        <th>Details</th>
+                        <th>IP Address</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td>
+                            <a href="#" class="user-link" data-user-id="{{ log.user.id }}">
+                                {{ log.user.username }}
+                            </a>
+                        </td>
+                        <td>{{ log.action }}</td>
+                        <td>{{ log.details }}</td>
+                        <td>{{ log.ip_address }}</td>
+                        <td>{{ log.created_at|date:"M d, Y H:i" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5">No logs found</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Previous</a>
+            {% endif %}
+            <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% for key,value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Modal Script -->
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const modal = document.getElementById("userModal");
+      const closeBtn = modal.querySelector(".close");
+      const detailsContainer = document.getElementById("userDetailsContent");
+
+      document.querySelectorAll(".user-link").forEach(link => {
+        link.addEventListener("click", function(e) {
+          e.preventDefault();
+          const userId = this.dataset.userId;
+          const url = `/activitylogs/user/${userId}/`;
+
+          fetch(url, {
+            headers: {'Accept': 'application/json'}
+          })
+          .then(res => res.json())
+          .then(data => {
+            const table = document.createElement('table');
+            table.innerHTML = `
+              <thead>
+                <tr>
+                  <th>Action</th>
+                  <th>Details</th>
+                  <th>Timestamp</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.logs.map(log => `
+                  <tr>
+                    <td>${log.action}</td>
+                    <td>${log.details}</td>
+                    <td>${log.created_at}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            `;
+            detailsContainer.innerHTML = '';
+            detailsContainer.appendChild(table);
+            modal.style.display = "block";
+          })
+          .catch(error => {
+            console.error('Error fetching user details:', error);
+            detailsContainer.innerHTML = '<p>Error loading user details.</p>';
+            modal.style.display = "block";
+          });
+        });
+      });
+
+      closeBtn.onclick = function() {
+        modal.style.display = "none";
+      }
+      window.onclick = function(event) {
+        if (event.target == modal) modal.style.display = "none";
+      }
+    });
+    </script>
+
+    <!-- Added JavaScript for notification functionality -->
+    <!-- Updated JS path to match the imported admin_dashboard.js -->
+    <script src="{% static 'js/admin_dashboard.js' %}"></script>
+    <script>
+        // Show/hide region dropdown for filters
+        function updateRegionDropdown() {
+            const roleSelect = document.getElementById('role');
+            const regionSelect = document.getElementById('region');
+            const regionLabel = document.getElementById('regionLabel');
+            const selectedRole = roleSelect.value;
+
+            if (selectedRole === 'PENRO' || selectedRole === 'CENRO') {
+                regionSelect.style.display = 'inline-block';
+                regionLabel.style.display = 'inline-block';
+
+                // Clear existing options except the first
+                regionSelect.innerHTML = '<option value="">All Offices</option>';
+
+                // Add options based on role
+                let options = [];
+                if (selectedRole === 'PENRO') {
+                    options = ['Bohol', 'Cebu', 'Negros Oriental', 'Siquijor'];
+                } else if (selectedRole === 'CENRO') {
+                    options = ['Argao', 'Ayungon', 'Cebu', 'Dumaguete', 'Talibon', 'Tagbiliran'];
+                }
+
+                options.forEach(option => {
+                    const opt = document.createElement('option');
+                    opt.value = option;
+                    opt.textContent = option;
+                    if ('{{ request.GET.region }}' === option) {
+                        opt.selected = true;
+                    }
+                    regionSelect.appendChild(opt);
+                });
+            } else {
+                regionSelect.style.display = 'none';
+                regionLabel.style.display = 'none';
+                regionSelect.value = '';
+            }
+        }
+
+        document.getElementById('role').addEventListener('change', updateRegionDropdown);
+
+        // On load
+        updateRegionDropdown();
+    </script>
+</body>
+</html>

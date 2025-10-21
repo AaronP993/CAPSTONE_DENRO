@@ -1,12 +1,14 @@
 <!-- templates/includes/sidenav/sidenav_penro.html -->
 <aside class="sidenav">
-  <div class="sidenav__header">
+  <div class="sidenavheader">
     <div class="avatar">PR</div>
     <div class="title">PENRO</div>
   </div>
-  <ul class="sidenav__menu">
-    <li><a href="{% url 'PENRO-dashboard' %}">Dashboard</a></li>
-    <li><a href="#">Activity Logs</a></li>
+  <ul class="sidenavmenu">
+    <li><a href="{% url 'PENRO_dashboard' %}">Dashboard</a></li>
+   <li><a href="{% url 'PENRO_activitylogs' %}">Activity Logs</a></li>
+    <li><a href="{% url 'PENRO_create_account' %}">Create Account</a></li>
+    <li><a href="{% url 'PENRO_inventory' %}">PENRO Inventory</a></li>
     <li><a href="#">Reports</a></li>
     <li><a href="#">Templates</a></li>
   </ul>
