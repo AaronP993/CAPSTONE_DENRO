@@ -1,0 +1,486 @@
+/* ===== Enumerator Report Modal Styles ===== */
+
+/* Modal Overlay */
+.enum-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.enum-modal.show {
+  display: flex;
+  animation: enumFadeIn 0.2s ease-out;
+}
+
+@keyframes enumFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal Content Container */
+.enum-modal-content {
+  width: min(1000px, 95vw);
+  max-height: 90vh;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  animation: enumSlideUp 0.25s ease-out;
+  overflow: hidden;
+}
+
+@keyframes enumSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Modal Header */
+.enum-modal-header {
+  padding: 24px 28px;
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-bottom: 3px solid #388E3C;
+}
+
+.enum-header-text {
+  flex: 1;
+}
+
+.enum-modal-title {
+  margin: 0 0 8px 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.enum-modal-subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+  opacity: 0.95;
+  line-height: 1.4;
+  letter-spacing: 0.3px;
+}
+
+.enum-modal-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  font-size: 2rem;
+  line-height: 1;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: 20px;
+}
+
+.enum-modal-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
+}
+
+/* Modal Body - Scrollable */
+.enum-modal-body {
+  padding: 24px 28px;
+  overflow-y: auto;
+  flex: 1;
+  background: #fafafa;
+}
+
+/* Custom Scrollbar */
+.enum-modal-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.enum-modal-body::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.enum-modal-body::-webkit-scrollbar-thumb {
+  background: #4CAF50;
+  border-radius: 5px;
+}
+
+.enum-modal-body::-webkit-scrollbar-thumb:hover {
+  background: #45a049;
+}
+
+/* Sections */
+.enum-section {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.enum-section:last-child {
+  margin-bottom: 0;
+}
+
+.enum-section-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #2c5aa0;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e8f5e9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Rows and Columns */
+.enum-row {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.enum-row:last-child {
+  margin-bottom: 0;
+}
+
+.enum-row.two-cols {
+  grid-template-columns: 1fr 1fr;
+}
+
+.enum-row.three-cols {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* Fields */
+.enum-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.enum-field.full-width {
+  grid-column: 1 / -1;
+}
+
+.enum-field label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 6px;
+  letter-spacing: 0.2px;
+}
+
+.enum-value {
+  min-height: 38px;
+  padding: 10px 14px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  color: #333;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+/* Permits Grid */
+.enum-permits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.enum-permit-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.enum-permit-item label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 5px;
+}
+
+.enum-permit-item .enum-value {
+  min-height: 34px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+
+/* Attachments */
+.enum-attachments {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  padding: 12px;
+  background: #f8f9fa;
+  border: 1px dashed #dee2e6;
+  border-radius: 6px;
+}
+
+.enum-no-attachments {
+  text-align: center;
+  color: #999;
+  font-style: italic;
+  padding: 20px;
+  margin: 0;
+}
+
+.enum-attachment-item {
+  position: relative;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #dee2e6;
+  background: white;
+}
+
+.enum-attachment-item img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  display: block;
+}
+
+.enum-attachment-caption {
+  padding: 8px;
+  font-size: 0.8rem;
+  color: #666;
+  background: #f8f9fa;
+  text-align: center;
+}
+
+/* Signatures */
+.enum-signatures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+.enum-signature-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px;
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.enum-signature-box label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 10px;
+}
+
+.enum-signature-box .enum-value {
+  width: 100%;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: #2c5aa0;
+  background: white;
+  margin-bottom: 8px;
+}
+
+.enum-signature-box small {
+  font-size: 0.75rem;
+  color: #777;
+  font-style: italic;
+}
+
+/* Modal Footer */
+.enum-modal-footer {
+  padding: 16px 28px;
+  background: #f8f9fa;
+  border-top: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* Buttons */
+.enum-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.enum-btn-primary {
+  background: #4CAF50;
+  color: white;
+  box-shadow: 0 2px 4px rgba(76, 175, 80, 0.3);
+}
+
+.enum-btn-primary:hover {
+  background: #45a049;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(76, 175, 80, 0.4);
+}
+
+.enum-btn-secondary {
+  background: white;
+  color: #666;
+  border: 1px solid #dee2e6;
+}
+
+.enum-btn-secondary:hover {
+  background: #f8f9fa;
+  border-color: #adb5bd;
+}
+
+/* Print Styles */
+@media print {
+  .enum-modal {
+    position: static;
+    background: none;
+    padding: 0;
+  }
+
+  .enum-modal-content {
+    max-height: none;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .enum-modal-header {
+    background: white;
+    color: black;
+    border: 2px solid black;
+    page-break-after: avoid;
+  }
+
+  .enum-modal-footer,
+  .enum-modal-close {
+    display: none;
+  }
+
+  .enum-modal-body {
+    background: white;
+  }
+
+  .enum-section {
+    page-break-inside: avoid;
+    border: 1px solid #333;
+  }
+
+  .enum-value {
+    border: 1px solid #666;
+    background: white;
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .enum-modal-content {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .enum-modal-header {
+    padding: 18px 20px;
+  }
+
+  .enum-modal-title {
+    font-size: 1.35rem;
+  }
+
+  .enum-modal-subtitle {
+    font-size: 0.8rem;
+  }
+
+  .enum-modal-body {
+    padding: 16px 20px;
+  }
+
+  .enum-section {
+    padding: 16px;
+  }
+
+  .enum-row.two-cols,
+  .enum-row.three-cols {
+    grid-template-columns: 1fr;
+  }
+
+  .enum-permits-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .enum-signatures {
+    grid-template-columns: 1fr;
+  }
+
+  .enum-modal-footer {
+    padding: 14px 20px;
+    flex-direction: column;
+  }
+
+  .enum-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .enum-modal-close {
+    width: 36px;
+    height: 36px;
+    font-size: 1.5rem;
+    margin-left: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .enum-modal {
+    padding: 0;
+  }
+
+  .enum-modal-title {
+    font-size: 1.2rem;
+  }
+
+  .enum-modal-subtitle {
+    font-size: 0.75rem;
+  }
+
+  .enum-attachments {
+    grid-template-columns: 1fr;
+  }
+}

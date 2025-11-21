@@ -16,6 +16,13 @@
 
     <div class="card-right">
       <h1>CREATE ACCOUNT</h1>
+      
+      <!-- Show current user info -->
+      {% if current_user_role %}
+      <div class="user-info">
+        <small>Logged in as: {{ current_user_role }}</small>
+      </div>
+      {% endif %}
 
       {% if messages %}
         <ul class="messages">
@@ -60,33 +67,6 @@
           <input type="text" name="phone_number" placeholder="">
         </div>
 
-        <!-- Region -->
-        <div class="field">
-          <label>Region:</label>
-          <select name="region_id" id="regionSelect">
-            <option value="">-- Select Region --</option>
-            {% for r in regions %}
-              <option value="{{ r.id }}">{{ r.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <!-- PENRO (depends on Region) -->
-        <div class="field">
-          <label>PENRO:</label>
-          <select name="penro_id" id="penroSelect" disabled>
-            <option value="">-- Select PENRO --</option>
-          </select>
-        </div>
-
-        <!-- CENRO (depends on PENRO) -->
-        <div class="field">
-          <label>CENRO:</label>
-          <select name="cenro_id" id="cenroSelect" disabled>
-            <option value="">-- Select CENRO --</option>
-          </select>
-        </div>
-
         <div class="field">
           <label>Role:</label>
           <select name="role" id="roleSelect" required>
@@ -95,6 +75,69 @@
               <option value="{{ r }}">{{ r }}</option>
             {% endfor %}
           </select>
+          {% if not roles %}
+          <small class="help-text" style="color: #dc3545;">You don't have permission to create any user roles.</small>
+          {% endif %}
+        </div>
+
+        <!-- Auto-inherited office assignments info -->
+        <div class="inherited-assignments" id="inheritedInfo" style="display: none;">
+          <h3>Office Assignment (Auto-inherited)</h3>
+          <div class="assignment-display">
+            <div class="assignment-item" id="inheritedRegion" style="display: none;">
+              <strong>Region:</strong> <span id="regionName">{{ current_user_region_name }}</span>
+              <input type="hidden" name="region_id" id="hiddenRegion" value="{{ current_user_region_id }}">
+            </div>
+            <div class="assignment-item" id="inheritedPenro" style="display: none;">
+              <strong>PENRO:</strong> <span id="penroName">{{ current_user_penro_name }}</span>
+              <input type="hidden" name="penro_id" id="hiddenPenro" value="{{ current_user_penro_id }}">
+            </div>
+            <div class="assignment-item" id="inheritedCenro" style="display: none;">
+              <strong>CENRO:</strong> <span id="cenroName">{{ current_user_cenro_name }}</span>
+              <input type="hidden" name="cenro_id" id="hiddenCenro" value="{{ current_user_cenro_id }}">
+            </div>
+          </div>
+          <small class="help-text">New user will be assigned to your office(s) automatically.</small>
+        </div>
+
+        <!-- Manual selection fields (for PENRO/CENRO selection when needed) -->
+        <div class="manual-selection" id="manualSelection" style="display: none;">
+          
+          <!-- Region Selection (shown when Super Admin creates Admin) -->
+          <div class="field" id="regionSelectionField" style="display: none;">
+            <label>Select Region:</label>
+            <select name="region_id" id="regionSelect">
+              <option value="">-- Select Region --</option>
+              {% for r in regions %}
+                <option value="{{ r.id }}">{{ r.name }}</option>
+              {% endfor %}
+            </select>
+            <small class="help-text">Choose which region for the Admin user.</small>
+          </div>
+          
+          <!-- PENRO Selection (shown when Admin creates PENRO) -->
+          <div class="field" id="penroSelectionField" style="display: none;">
+            <label>Select PENRO:</label>
+            <select name="penro_id" id="penroSelect">
+              <option value="">-- Select PENRO --</option>
+              {% for p in penros %}
+                <option value="{{ p.id }}">{{ p.name }}</option>
+              {% endfor %}
+            </select>
+            <small class="help-text">Choose which PENRO office within your region.</small>
+          </div>
+
+          <!-- CENRO Selection (shown when PENRO creates CENRO) -->
+          <div class="field" id="cenroSelectionField" style="display: none;">
+            <label>Select CENRO:</label>
+            <select name="cenro_id" id="cenroSelect">
+              <option value="">-- Select CENRO --</option>
+              {% for c in cenros %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+              {% endfor %}
+            </select>
+            <small class="help-text">Choose which CENRO office within your PENRO.</small>
+          </div>
         </div>
 
         <div class="field">
@@ -121,137 +164,321 @@
 </div>
 
 <script>
-  // Cascading selects + role rules + clear conflicting fields before submit
+  // Auto-inheritance office assignment logic
   (function () {
-    const regionSel = document.getElementById('regionSelect');
-    const penroSel  = document.getElementById('penroSelect');
-    const cenroSel  = document.getElementById('cenroSelect');
-    const roleSel   = document.getElementById('roleSelect');
-    const form      = document.getElementById('createAccountForm');
+    const roleSel = document.getElementById('roleSelect');
+    const form = document.getElementById('createAccountForm');
+    
+    // Current user info (passed from Django context)
+    const currentUserRole = '{{ current_user_role|lower }}';
+    const currentUserRegionId = '{{ current_user_region_id|default:"" }}';
+    const currentUserPenroId = '{{ current_user_penro_id|default:"" }}'; 
+    const currentUserCenroId = '{{ current_user_cenro_id|default:"" }}';
+    
+    console.log('Current user role:', currentUserRole);
+    console.log('Current user region ID:', currentUserRegionId);
+    console.log('Current user PENRO ID:', currentUserPenroId);
+    console.log('Current user CENRO ID:', currentUserCenroId);
+    
+    // UI elements for auto-inheritance display
+    const inheritedInfo = document.getElementById('inheritedInfo');
+    const inheritedRegion = document.getElementById('inheritedRegion');
+    const inheritedPenro = document.getElementById('inheritedPenro');
+    const inheritedCenro = document.getElementById('inheritedCenro');
+    
+    // UI elements for manual selection
+    const manualSelection = document.getElementById('manualSelection');
+    const regionSelectionField = document.getElementById('regionSelectionField');
+    const penroSelectionField = document.getElementById('penroSelectionField');
+    const cenroSelectionField = document.getElementById('cenroSelectionField');
+    const regionSelect = document.getElementById('regionSelect');
+    const penroSelect = document.getElementById('penroSelect');
+    const cenroSelect = document.getElementById('cenroSelect');
+    
+    // Hidden inputs for auto-assigned values
+    const hiddenRegion = document.getElementById('hiddenRegion');
+    const hiddenPenro = document.getElementById('hiddenPenro');
+    const hiddenCenro = document.getElementById('hiddenCenro');
 
-    function resetSelect(sel, placeholder) {
-      sel.innerHTML = '';
-      const opt = document.createElement('option');
-      opt.value = ''; opt.textContent = placeholder;
-      sel.appendChild(opt);
-      sel.value = '';
+    function hideAllFields() {
+      if (inheritedInfo) inheritedInfo.style.display = 'none';
+      if (inheritedRegion) inheritedRegion.style.display = 'none';
+      if (inheritedPenro) inheritedPenro.style.display = 'none';
+      if (inheritedCenro) inheritedCenro.style.display = 'none';
+      if (manualSelection) manualSelection.style.display = 'none';
+      if (regionSelectionField) regionSelectionField.style.display = 'none';
+      if (penroSelectionField) penroSelectionField.style.display = 'none';
+      if (cenroSelectionField) cenroSelectionField.style.display = 'none';
     }
 
-    function disable(sel, flag) {
-      sel.disabled = flag;
-      if (flag) sel.classList.add('is-disabled'); else sel.classList.remove('is-disabled');
+    function showInheritedAssignment(showRegion, showPenro, showCenro) {
+      if (inheritedInfo) inheritedInfo.style.display = 'block';
+      if (inheritedRegion) inheritedRegion.style.display = showRegion ? 'block' : 'none';
+      if (inheritedPenro) inheritedPenro.style.display = showPenro ? 'block' : 'none';
+      if (inheritedCenro) inheritedCenro.style.display = showCenro ? 'block' : 'none';
     }
 
-    async function loadPenros(regionId) {
-      resetSelect(penroSel, '-- Select PENRO --');
-      resetSelect(cenroSel, '-- Select CENRO --');
-      if (!regionId) {
-        disable(penroSel, true);
-        disable(cenroSel, true);
+    function clearHiddenInputs() {
+      if (hiddenRegion) hiddenRegion.value = '';
+      if (hiddenPenro) hiddenPenro.value = '';
+      if (hiddenCenro) hiddenCenro.value = '';
+    }
+
+    function applyRoleBasedAssignment() {
+      const selectedRole = roleSel ? roleSel.value : '';
+      
+      console.log('Selected role:', selectedRole);
+      
+      hideAllFields();
+      clearHiddenInputs();
+      
+      if (!selectedRole) return;
+
+      if (selectedRole === 'Super Admin') {
+        // Super Admin has no office assignments - show nothing
+        console.log('Super Admin selected - no office assignments');
         return;
       }
-      disable(penroSel, false);
-      try {
-        const res = await fetch(`/api/penros/${regionId}/`);
-        const data = await res.json();
-        (data.items || []).forEach(({id, name}) => {
-          const o = document.createElement('option');
-          o.value = id; o.textContent = name;
-          penroSel.appendChild(o);
-        });
-      } catch (_) { /* ignore */ }
-    }
 
-    async function loadCenros(penroId) {
-      resetSelect(cenroSel, '-- Select CENRO --');
-      if (!penroId) { disable(cenroSel, true); return; }
-      disable(cenroSel, false);
-      try {
-        const res = await fetch(`/api/cenros/${penroId}/`);
-        const data = await res.json();
-        (data.items || []).forEach(({id, name}) => {
-          const o = document.createElement('option');
-          o.value = id; o.textContent = name;
-          cenroSel.appendChild(o);
-        });
-      } catch (_) { /* ignore */ }
-    }
-
-    function applyRoleRules() {
-      const role = roleSel.value;
-
-      // show all by default
-      regionSel.closest('.field').style.display = '';
-      penroSel.closest('.field').style.display  = '';
-      cenroSel.closest('.field').style.display  = '';
-
-      if (role === 'Super Admin') {
-        regionSel.value = '';
-        resetSelect(penroSel, '-- Select PENRO --'); resetSelect(cenroSel, '-- Select CENRO --');
-        disable(penroSel, true); disable(cenroSel, true);
-        regionSel.closest('.field').style.display = 'none';
-        penroSel.closest('.field').style.display  = 'none';
-        cenroSel.closest('.field').style.display  = 'none';
-      } else if (role === 'Admin' || role === 'Evaluator') {
-        // Region required; others optional
-        disable(penroSel, !regionSel.value);
-        disable(cenroSel, !penroSel.value);
-      } else if (role === 'PENRO') {
-        // Region + PENRO required; hide CENRO
-        disable(penroSel, !regionSel.value);
-        resetSelect(cenroSel, '-- Select CENRO --'); disable(cenroSel, true);
-        cenroSel.closest('.field').style.display = 'none';
-      } else if (role === 'CENRO') {
-        // Region + PENRO + CENRO required
-        disable(penroSel, !regionSel.value);
-        disable(cenroSel, !penroSel.value);
-      }
-    }
-
-    // Clear conflicting office fields on submit so DB function accepts
-    form.addEventListener('submit', function () {
-      const role = roleSel.value;
-      if (role === 'Super Admin') {
-        regionSel.value = '';
-        penroSel.value  = '';
-        cenroSel.value  = '';
-      } else if (role === 'Admin') {
-        penroSel.value  = '';
-        cenroSel.value  = '';
-      } else if (role === 'PENRO') {
-        regionSel.value = '';
-        cenroSel.value  = '';
-      } else if (role === 'CENRO') {
-        regionSel.value = '';
-        penroSel.value  = '';
-      } else if (role === 'Evaluator') {
-        if (cenroSel.value) {
-          regionSel.value = '';
-          penroSel.value  = '';
-        } else if (penroSel.value) {
-          regionSel.value = '';
-          cenroSel.value  = '';
-        } else {
-          penroSel.value  = '';
-          cenroSel.value  = '';
+      // Apply auto-inheritance based on current user's role
+      if (currentUserRole === 'super admin') {
+        if (selectedRole === 'Super Admin') {
+          // Super Admin creating Super Admin - no office assignments
+          console.log('Super Admin creating Super Admin - no assignments needed');
+          return;
+        } else if (selectedRole === 'Admin') {
+          // Super Admin creating Admin - show manual region selection
+          console.log('Super Admin creating Admin - showing region selection');
+          if (manualSelection) manualSelection.style.display = 'block';
+          if (regionSelectionField) regionSelectionField.style.display = 'block';
+        }
+      } else if (currentUserRole === 'admin') {
+        if (selectedRole === 'Admin') {
+          // Admin creating Admin - inherit region
+          console.log('Admin creating Admin - inheriting region');
+          showInheritedAssignment(true, false, false);
+          if (hiddenRegion && currentUserRegionId) hiddenRegion.value = currentUserRegionId;
+        } else if (selectedRole === 'PENRO') {
+          // Admin creating PENRO - show manual PENRO selection within their region
+          console.log('Admin creating PENRO - showing manual selection');
+          if (manualSelection) manualSelection.style.display = 'block';
+          if (penroSelectionField) penroSelectionField.style.display = 'block';
+          // The region is implicit (current admin's region)
+        }
+      } else if (currentUserRole === 'penro') {
+        if (selectedRole === 'PENRO') {
+          // PENRO creating PENRO - inherit PENRO assignment
+          console.log('PENRO creating PENRO - inheriting PENRO');
+          showInheritedAssignment(false, true, false);
+          if (hiddenPenro && currentUserPenroId) hiddenPenro.value = currentUserPenroId;
+        } else if (selectedRole === 'CENRO') {
+          // PENRO creating CENRO - show manual CENRO selection within their PENRO
+          console.log('PENRO creating CENRO - showing manual selection');
+          if (manualSelection) manualSelection.style.display = 'block';
+          if (cenroSelectionField) cenroSelectionField.style.display = 'block';
+          // The PENRO is implicit (current PENRO's office)
+        }
+      } else if (currentUserRole === 'cenro') {
+        if (selectedRole === 'CENRO') {
+          // CENRO creating CENRO - inherit CENRO assignment
+          console.log('CENRO creating CENRO - inheriting CENRO');
+          showInheritedAssignment(false, false, true);
+          if (hiddenCenro && currentUserCenroId) hiddenCenro.value = currentUserCenroId;
+        } else if (selectedRole === 'Evaluator') {
+          // CENRO creating Evaluator - inherit CENRO assignment
+          console.log('CENRO creating Evaluator - inheriting CENRO');
+          showInheritedAssignment(false, false, true);
+          if (hiddenCenro && currentUserCenroId) hiddenCenro.value = currentUserCenroId;
         }
       }
-    });
+    }
 
-    regionSel.addEventListener('change', (e) => {
-      loadPenros(e.target.value).then(applyRoleRules);
-    });
-    penroSel.addEventListener('change', (e) => {
-      loadCenros(e.target.value).then(applyRoleRules);
-    });
-    roleSel.addEventListener('change', applyRoleRules);
+    // Form submission validation
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        const selectedRole = roleSel ? roleSel.value : '';
+        
+        if (!selectedRole) {
+          e.preventDefault();
+          alert('Please select a role.');
+          return;
+        }
+        
+        // Validate manual selections when required
+        if (currentUserRole === 'super admin' && selectedRole === 'Admin') {
+          if (!regionSelect || !regionSelect.value) {
+            e.preventDefault();
+            alert('Please select a region for the Admin user.');
+            return;
+          }
+        }
+        
+        if (currentUserRole === 'admin' && selectedRole === 'PENRO') {
+          if (!penroSelect || !penroSelect.value) {
+            e.preventDefault();
+            alert('Please select a PENRO office.');
+            return;
+          }
+        }
+        
+        if (currentUserRole === 'penro' && selectedRole === 'CENRO') {
+          if (!cenroSelect || !cenroSelect.value) {
+            e.preventDefault();
+            alert('Please select a CENRO office.');
+            return;
+          }
+        }
+      });
+    }
 
-    // Initial
-    disable(penroSel, true);
-    disable(cenroSel, true);
-    applyRoleRules();
+    // Load cascading data for manual selections
+    async function loadPenrosForCurrentRegion() {
+      if (!currentUserRegionId || currentUserRole !== 'admin' || !penroSelect) return;
+      
+      try {
+        const res = await fetch(`/api/penros/${currentUserRegionId}/`);
+        if (res.ok) {
+          const data = await res.json();
+          penroSelect.innerHTML = '<option value="">-- Select PENRO --</option>';
+          (data.items || []).forEach(({id, name}) => {
+            const option = document.createElement('option');
+            option.value = id;
+            option.textContent = name;
+            penroSelect.appendChild(option);
+          });
+        }
+      } catch (e) {
+        console.error('Error loading PENROs:', e);
+      }
+    }
+
+    async function loadCenrosForCurrentPenro() {
+      if (!currentUserPenroId || currentUserRole !== 'penro' || !cenroSelect) return;
+      
+      try {
+        const res = await fetch(`/api/cenros/${currentUserPenroId}/`);
+        if (res.ok) {
+          const data = await res.json();
+          cenroSelect.innerHTML = '<option value="">-- Select CENRO --</option>';
+          (data.items || []).forEach(({id, name}) => {
+            const option = document.createElement('option');
+            option.value = id;
+            option.textContent = name;
+            cenroSelect.appendChild(option);
+          });
+        }
+      } catch (e) {
+        console.error('Error loading CENROs:', e);
+      }
+    }
+
+    // Event listeners
+    if (roleSel) {
+      roleSel.addEventListener('change', applyRoleBasedAssignment);
+    }
+
+    // Initialize when DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+      applyRoleBasedAssignment();
+      loadPenrosForCurrentRegion();
+      loadCenrosForCurrentPenro();
+    });
+    
+    // Also run immediately in case DOM is already loaded
+    applyRoleBasedAssignment();
+    loadPenrosForCurrentRegion();
+    loadCenrosForCurrentPenro();
   })();
 </script>
+
+<style>
+  .user-info {
+    background: #f8f9fa;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: #6c757d;
+  }
+  
+  .help-text {
+    font-size: 0.8rem;
+    margin-top: 0.25rem;
+    display: block;
+  }
+  
+  .messages {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem 0;
+  }
+  
+  .msg {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    border-radius: 4px;
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+  
+  .msg.success {
+    background-color: #d4edda;
+    color: #155724;
+    border-color: #c3e6cb;
+  }
+  
+  .msg.info {
+    background-color: #cce7ff;
+    color: #004085;
+    border-color: #b3d7ff;
+  }
+
+  /* Auto-inheritance styling */
+  .inherited-assignments {
+    background: #e8f5e8;
+    border: 1px solid #c3e6cb;
+    border-radius: 6px;
+    padding: 1rem;
+    margin: 1rem 0;
+  }
+
+  .inherited-assignments h3 {
+    margin: 0 0 0.5rem 0;
+    color: #155724;
+    font-size: 1rem;
+  }
+
+  .assignment-display {
+    margin: 0.5rem 0;
+  }
+
+  .assignment-item {
+    padding: 0.25rem 0;
+    color: #155724;
+  }
+
+  .assignment-item strong {
+    display: inline-block;
+    min-width: 80px;
+  }
+
+  .manual-selection {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 6px;
+    padding: 1rem;
+    margin: 1rem 0;
+  }
+
+  .manual-selection .field {
+    margin-bottom: 0.5rem;
+  }
+
+  .manual-selection .field:last-child {
+    margin-bottom: 0;
+  }
+</style>
 
 <script src="{% static 'js/global.js' %}"></script>
 </body>
