@@ -219,3 +219,225 @@ body.modal-open { overflow: hidden; }
   from{ opacity:0; transform:translateY(4px); }
   to{ opacity:1; transform:translateY(0); }
 }
+
+/* ============================================================= */
+/* ===============  CENRO REPORTS STYLES ADDED  ================= */
+/* ============================================================= */
+
+.reports-container {
+  background: #fff;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid #cdebe0;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
+  overflow: hidden;
+}
+
+.reports-header {
+  margin-bottom: 1rem;
+  flex-shrink: 0;
+}
+
+.reports-header h2 {
+  margin: 0 0 0.5rem 0;
+}
+
+.reports-count {
+  color: #666;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.active-filter-badge {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: #e3f2fd;
+  color: #1976d2;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
+}
+
+/* Filter Section */
+.filter-section {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 0.5rem 0;
+  flex-shrink: 0;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.filter-label {
+  font-weight: 500;
+  color: #555;
+  font-size: 0.8rem;
+}
+
+.date-input {
+  padding: .35rem .5rem;
+  border-radius: 4px;
+  border: 1px solid #cdebe0;
+  background: #fff;
+  font-size: 0.8rem;
+  width: 130px;
+  cursor: pointer;
+}
+
+.date-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  padding: 2px;
+}
+
+.type-select,
+.pa-select {
+  padding: .35rem .5rem;
+  border-radius: 4px;
+  border: 1px solid #cdebe0;
+  background: #fff;
+  font-size: 0.8rem;
+  width: 160px;
+  cursor: pointer;
+}
+
+.filter-btn {
+  padding: .35rem .85rem;
+  border: none;
+  border-radius: 4px;
+  background: #4CAF50;
+  color: white;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.3s;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.filter-btn:hover {
+  background: #45a049;
+}
+
+.clear-btn {
+  padding: .35rem .7rem;
+  border: 1px solid #cdebe0;
+  border-radius: 4px;
+  background: #f5f5f5;
+  color: #666;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.clear-btn:hover {
+  background: #e0e0e0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .filter-section {
+    gap: 0.4rem;
+  }
+
+  .type-select,
+  .pa-select {
+    width: 140px;
+  }
+
+  .date-input {
+    width: 120px;
+  }
+}
+
+/* Table container with scroll */
+.table-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  margin-top: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  min-height: 0;
+}
+
+/* Custom scrollbar styling */
+.table-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.table-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+  background: #cdebe0;
+  border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+  background: #4CAF50;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  padding: .6rem;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+th {
+  background: #f2fdf8;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+tr:hover {
+  background: #f8f9fa;
+}
+
+.report-id {
+  font-weight: 500;
+  color: #2c5aa0;
+}
+
+.remarks-cell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.no-data {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #666;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.no-data-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}

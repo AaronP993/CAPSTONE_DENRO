@@ -5,9 +5,13 @@ from django.http import JsonResponse, HttpResponseBadRequest
 from django.shortcuts import redirect, render
 from django.conf import settings
 import logging
+from supabase import create_client
+import os
 
 logger = logging.getLogger(__name__)
-
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")  # ⚠️ service role key, never expose to frontend
+supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 # =========================
 # LOGIN via Postgres function (UPDATED to match your schema)
 # =========================
@@ -433,19 +437,20 @@ def create_account(request):
                 with connection.cursor() as cur:
                     cur.execute(
                         """
-                        SELECT create_user(
-                            %s, %s, %s, %s,   -- first_name, last_name, gender, email
-                            %s,               -- role
-                            %s, %s,           -- username, password
-                            %s, %s,           -- phone_number, profile_pic
-                            %s, %s, %s,       -- region_id, penro_id, cenro_id
-                            %s                -- p_hash_password (True)
-                        );
+                                                SELECT create_user(
+                                %s, %s, %s, %s,   -- first_name, last_name, gender, email
+                                %s,               -- phone_number
+                                %s,               -- role
+                                %s, %s,           -- username, password
+                                %s,               -- profile_pic
+                                %s, %s, %s,       -- region_id, penro_id, cenro_id
+                                %s                -- p_hash_password
+                            );
                         """,
                         [
                             first_name, last_name, gender, email,
-                            role, username, password,
-                            phone_number, profile_pic,
+                            phone_number, role, username,
+                            password, profile_pic,
                             r, p, c,
                             True,
                         ],
@@ -564,3 +569,423 @@ def api_cenros_by_penro(request, penro_id):
         
         items = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
     return JsonResponse({"items": items})
+# =========================
+# GET ENUMERATOR REPORTS for CENRO (WITH ALL FILTERS)
+# =========================
+def get_enumerator_reports(cenro_id=None, from_date=None, to_date=None, establishment_type=None, pa_id=None, establishment_status=None):
+    """
+    Fetch enumerator reports for a CENRO office with all filters.
+    
+    Args:
+        cenro_id: Filter reports by CENRO office (None for all)
+        from_date: Start date (datetime.date object or None)
+        to_date: End date (datetime.date object or None)
+        establishment_type: Filter by establishment type (None for all)
+        pa_id: Filter by protected area ID (None for all)
+        establishment_status: Filter by establishment status (None for all)
+    
+    Returns:
+        List of report dictionaries
+    """
+    reports = []
+    
+    try:
+        with connection.cursor() as cur:
+            query = """
+                SELECT 
+                    er.id,
+                    er.establishment_name,
+                    er.proponent_name,
+                    er.pa_name,
+                    er.enumerator_name,
+                    er.report_date,
+                    er.informant_name,
+                    er.remarks,
+                    er.created_at,
+                    u.first_name || ' ' || u.last_name as enumerator_full_name,
+                    u.cenro_id,
+                    ep.establishment_type,
+                    er.pa_id,
+                    ep.establishment_status
+                FROM enumerators_report er
+                LEFT JOIN users u ON er.enumerator_id = u.id
+                LEFT JOIN establishment_profile ep ON er.establishment_id = ep.id
+                WHERE 1=1
+            """
+            
+            params = []
+            
+            if cenro_id:
+                query += " AND u.cenro_id = %s"
+                params.append(cenro_id)
+            
+            if from_date:
+                query += " AND er.report_date >= %s"
+                params.append(from_date)
+            
+            if to_date:
+                query += " AND er.report_date <= %s"
+                params.append(to_date)
+            
+            if establishment_type:
+                query += " AND LOWER(TRIM(ep.establishment_type)) = LOWER(TRIM(%s))"
+                params.append(establishment_type)
+            
+            if pa_id:
+                query += " AND er.pa_id = %s"
+                params.append(pa_id)
+            
+            if establishment_status:
+                query += " AND LOWER(TRIM(ep.establishment_status)) = LOWER(TRIM(%s))"
+                params.append(establishment_status)
+            
+            query += " ORDER BY er.report_date DESC, er.created_at DESC;"
+            
+            cur.execute(query, params)
+            
+            columns = [desc[0] for desc in cur.description]
+            for row in cur.fetchall():
+                reports.append(dict(zip(columns, row)))
+                
+    except DatabaseError as e:
+        logger.error(f"Error fetching enumerator reports: {e}")
+        
+    return reports
+
+
+def get_establishment_types_for_cenro(cenro_id):
+    """
+    Get list of establishment types for a specific CENRO.
+    
+    Args:
+        cenro_id: The CENRO office ID
+    
+    Returns:
+        List of establishment type strings
+    """
+    establishment_types = []
+    
+    try:
+        with connection.cursor() as cur:
+            query = """
+                SELECT DISTINCT ep.establishment_type
+                FROM enumerators_report er
+                LEFT JOIN users u ON er.enumerator_id = u.id
+                LEFT JOIN establishment_profile ep ON er.establishment_id = ep.id
+                WHERE u.cenro_id = %s
+                AND ep.establishment_type IS NOT NULL
+                ORDER BY ep.establishment_type;
+            """
+            
+            cur.execute(query, [cenro_id])
+            
+            for row in cur.fetchall():
+                if row[0]:
+                    establishment_types.append(row[0])
+                
+    except DatabaseError as e:
+        logger.error(f"Error fetching establishment types: {e}")
+        
+    return establishment_types
+
+
+def get_protected_areas_for_cenro(cenro_id):
+    """
+    Get list of protected areas for a specific CENRO.
+    Gets PAs from reports by this CENRO's enumerators.
+    
+    Args:
+        cenro_id: The CENRO office ID
+    
+    Returns:
+        List of dictionaries with id and name
+    """
+    protected_areas = []
+    
+    try:
+        with connection.cursor() as cur:
+            query = """
+                SELECT DISTINCT 
+                    pa.id,
+                    pa.name
+                FROM enumerators_report er
+                LEFT JOIN users u ON er.enumerator_id = u.id
+                LEFT JOIN protected_areas pa ON er.pa_id = pa.id
+                WHERE u.cenro_id = %s
+                AND pa.id IS NOT NULL
+                ORDER BY pa.name;
+            """
+            
+            cur.execute(query, [cenro_id])
+            
+            for row in cur.fetchall():
+                protected_areas.append({
+                    'id': row[0],
+                    'name': row[1]
+                })
+                
+    except DatabaseError as e:
+        logger.error(f"Error fetching protected areas: {e}")
+        
+    return protected_areas
+
+
+def get_report_details(report_id, cenro_id=None):
+    """
+    Get detailed information about a specific enumerator report.
+    
+    Args:
+        report_id: The report ID
+        cenro_id: Optional CENRO ID to verify access
+    
+    Returns:
+        Dictionary with complete report details or None if not found
+    """
+    try:
+        with connection.cursor() as cur:
+            query = """
+                SELECT 
+                    er.id,
+                    er.establishment_name,
+                    er.proponent_name,
+                    er.pa_name,
+                    er.enumerator_name,
+                    er.report_date,
+                    er.informant_name,
+                    er.remarks,
+                    er.created_at,
+                    er.updated_at,
+                    er.enumerator_signature,
+                    er.enumerator_signature_date,
+                    er.informant_signature,
+                    er.informant_signature_date,
+                    u.first_name || ' ' || u.last_name as enumerator_full_name,
+                    u.cenro_id,
+                    ep.establishment_type,
+                    ep.establishment_status,
+                    ep.description,
+                    ep.lot_status,
+                    ep.land_classification,
+                    ep.title_no,
+                    ep.lot_no,
+                    ep.lot_owner,
+                    ep.area_covered,
+                    ep.pa_zone,
+                    ep.within_easement,
+                    ep.tax_declaration_no,
+                    ep.mayor_permit_no,
+                    ep.mayor_permit_issued,
+                    ep.mayor_permit_exp,
+                    ep.business_permit_no,
+                    ep.business_permit_issued,
+                    ep.business_permit_exp,
+                    ep.building_permit_no,
+                    ep.building_permit_issued,
+                    ep.building_permit_exp,
+                    ep.pamb_resolution_no,
+                    ep.pamb_date_issued,
+                    ep.sapa_no,
+                    ep.sapa_date_issued,
+                    ep.pacbrma_no,
+                    ep.pacbrma_date_issued,
+                    ep.ecc_no,
+                    ep.ecc_date_issued,
+                    ep.discharge_permit_no,
+                    ep.discharge_date_issued,
+                    ep.pto_no,
+                    ep.pto_date_issued,
+                    ep.other_emb,
+                    gti.image as geo_image_url,
+                    gti.latitude as geo_latitude,
+                    gti.longitude as geo_longitude,
+                    gti.location as geo_location,
+                    gti.captured_at as geo_captured_at,
+                    an.attested_by_name,
+                    an.attested_by_position,
+                    an.attested_by_signature,
+                    an.noted_by_name,
+                    an.noted_by_position,
+                    an.noted_by_signature
+                FROM enumerators_report er
+                LEFT JOIN users u ON er.enumerator_id = u.id
+                LEFT JOIN establishment_profile ep ON er.establishment_id = ep.id
+                LEFT JOIN geo_tagged_images gti ON er.geo_tagged_image_id = gti.id
+                LEFT JOIN attestation_notations an ON er.attestation_id = an.id
+                WHERE er.id = %s
+            """
+            
+            params = [report_id]
+            
+            # If cenro_id provided, verify access
+            if cenro_id:
+                query += " AND u.cenro_id = %s"
+                params.append(cenro_id)
+            
+            cur.execute(query, params)
+            row = cur.fetchone()
+            
+            if not row:
+                return None
+            
+
+            
+            # Build permits array
+            permits = []
+            
+            # Mayor's Permit
+            if row[28] or row[29] or row[30]:
+                permits.append({
+                    'name': "Mayor's Permit",
+                    'number': row[28],
+                    'issued': row[29].isoformat() if row[29] else None,
+                    'expiry': row[30].isoformat() if row[30] else None
+                })
+            
+            # Business Permit
+            if row[31] or row[32] or row[33]:
+                permits.append({
+                    'name': 'Business Permit',
+                    'number': row[31],
+                    'issued': row[32].isoformat() if row[32] else None,
+                    'expiry': row[33].isoformat() if row[33] else None
+                })
+            
+            # Building Permit
+            if row[34] or row[35] or row[36]:
+                permits.append({
+                    'name': 'Building Permit',
+                    'number': row[34],
+                    'issued': row[35].isoformat() if row[35] else None,
+                    'expiry': row[36].isoformat() if row[36] else None
+                })
+            
+            # PAMB Resolution
+            if row[37] or row[38]:
+                permits.append({
+                    'name': 'PAMB Resolution',
+                    'number': row[37],
+                    'issued': row[38].isoformat() if row[38] else None,
+                    'expiry': None
+                })
+            
+            # SAPA
+            if row[39] or row[40]:
+                permits.append({
+                    'name': 'SAPA',
+                    'number': row[39],
+                    'issued': row[40].isoformat() if row[40] else None,
+                    'expiry': None
+                })
+            
+            # PACBRMA
+            if row[41] or row[42]:
+                permits.append({
+                    'name': 'PACBRMA',
+                    'number': row[41],
+                    'issued': row[42].isoformat() if row[42] else None,
+                    'expiry': None
+                })
+            
+            # ECC
+            if row[43] or row[44]:
+                permits.append({
+                    'name': 'Environmental Compliance Certificate (ECC)',
+                    'number': row[43],
+                    'issued': row[44].isoformat() if row[44] else None,
+                    'expiry': None
+                })
+            
+            # Discharge Permit
+            if row[45] or row[46]:
+                permits.append({
+                    'name': 'Discharge Permit',
+                    'number': row[45],
+                    'issued': row[46].isoformat() if row[46] else None,
+                    'expiry': None
+                })
+            
+            # PTO
+            if row[47] or row[48]:
+                permits.append({
+                    'name': 'Permit to Operate (PTO)',
+                    'number': row[47],
+                    'issued': row[48].isoformat() if row[48] else None,
+                    'expiry': None
+                })
+            
+            # Build response dictionary
+            report_details = {
+                'id': row[0],
+                'establishment_name': row[1],
+                'proponent_name': row[2],
+                'pa_name': row[3],
+                'enumerator_name': row[4],
+                'report_date': row[5].isoformat() if row[5] else None,
+                'informant_name': row[6],
+                'remarks': row[7],
+                'created_at': row[8].isoformat() if row[8] else None,
+                'updated_at': row[9].isoformat() if row[9] else None,
+                'enumerator_signature': row[10],
+                'enumerator_signature_date': row[11].isoformat() if row[11] else None,
+                'informant_signature': row[12],
+                'informant_signature_date': row[13].isoformat() if row[13] else None,
+                'establishment_type': row[16],
+                'establishment_status': row[17],
+                'description': row[18],
+                'lot_status': row[19],
+                'land_classification': row[20],
+                'title_no': row[21],
+                'lot_no': row[22],
+                'lot_owner': row[23],
+                'area_covered': row[24],
+                'pa_zone': row[25],
+                'within_easement': row[26],
+                'tax_declaration_no': row[27],
+                'permits': permits,
+                'other_emb': row[49],
+                'geo_image_url': row[50],
+                'latitude': row[51],
+                'longitude': row[52],
+                'location': row[53],
+                'geo_captured_at': row[54].isoformat() if row[54] else None,
+                'attested_by_name': row[55],
+                'attested_by_position': row[56],
+                'attested_by_signature': row[57],
+                'noted_by_name': row[58],
+                'noted_by_position': row[59],
+                'noted_by_signature': row[60]
+            }
+            
+            return report_details
+                
+    except DatabaseError as e:
+        logger.error(f"Error fetching report details: {e}")
+        return None
+    
+
+
+
+def get_activity_logs():
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("SELECT * FROM get_activity_logs();")
+        logs = cursor.fetchall()
+
+        log_list = []
+        for row in logs:
+            log_list.append({
+                "task": row[0],
+                "user_id": row[1],
+                "name": row[2],
+                "timestamp": row[3],
+            })
+
+        return log_list
+    except Exception as e:
+        print("Error fetching logs:", e)
+        return []
+    finally:
+        cursor.close()
+        conn.close()
