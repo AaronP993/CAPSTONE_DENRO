@@ -1,11 +1,21 @@
 # views.py
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
-from .operation import login_user, create_account, get_enumerator_reports, get_establishment_types_for_cenro, get_protected_areas_for_cenro, get_report_details
+from .operation import (
+    login_user,
+    create_account,
+    get_enumerator_reports,
+    get_establishment_types_for_cenro,
+    get_protected_areas_for_cenro,
+    get_report_details,
+    get_report_images,
+    get_activity_logs,
+)
 from .decorators import login_required, role_required, can_create_users
 from datetime import datetime 
 import os
-
+from django.shortcuts import render
+# moved get_activity_logs import into the grouped import above
 
 def login_view(request):
     if request.method == "POST":
@@ -122,34 +132,66 @@ def cenro_report_details(request, report_id):
     API endpoint to get detailed report information for the modal
     """
     cenro_id = request.session.get('cenro_id')
-    
-    # Get report details
+
+    # Get report details (existing DB-backed function)
     report_data = get_report_details(report_id, cenro_id)
-    
+
     if not report_data:
         return JsonResponse({'error': 'Report not found or access denied'}, status=404)
-    
+
+    # New: fetch images via Supabase
+    images = get_report_images(report_id)
+    report_data['images'] = images
+
     return JsonResponse(report_data)
 
 
+@login_required
+@role_required(['CENRO', 'PENRO'])
+def cenro_attest_report(request, report_id):
+    """Endpoint to save attestation (attested_by) and signature for a report.
 
+    Expects POST JSON: { attested_by_name, attested_by_position, signature_dataurl }
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
 
+    try:
+        import json
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON payload'}, status=400)
 
+    attested_by_name = payload.get('attested_by_name') or f"{request.session.get('first_name','').strip()} {request.session.get('last_name','').strip()}".strip()
+    attested_by_position = payload.get('attested_by_position') or ''
+    signature_dataurl = payload.get('signature_dataurl')
 
+    if not signature_dataurl:
+        return JsonResponse({'error': 'Signature data is required'}, status=400)
 
+    # Call operation helper to save attestation and signature
+    result = None
+    try:
+        result = save_attest_result = get_attest_result = None
+        from . import operation as op
+        # pass current user id for auditing if needed
+        current_user_id = request.session.get('user_id')
+        ok, info = op.save_attestation(report_id,
+                                       attested_by_name,
+                                       attested_by_position,
+                                       signature_dataurl,
+                                       current_user_id)
+        if not ok:
+            return JsonResponse({'error': info or 'Failed to save attestation'}, status=500)
 
+        # On success, return the updated attestation fields so frontend can render
+        return JsonResponse({'success': True, 'attested_by_signature_url': info})
 
+    except Exception as e:
+        import logging
+        logging.exception('Error in cenro_attest_report')
+        return JsonResponse({'error': 'Internal server error'}, status=500)
 
-
-
-
-
-
-
-
-
-from django.shortcuts import render
-from .operation import get_activity_logs
 
 def cenro_activity_logs(request):
     logs = get_activity_logs()

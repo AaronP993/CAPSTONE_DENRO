@@ -27,10 +27,8 @@ urlpatterns = [
     path('cenro/activity-logs/', views.cenro_activitylogs, name='CENRO-activitylogs'),
     path('cenro/reports/',       views.cenro_reports,      name='CENRO-reports'),
     path('cenro/reports/<int:report_id>/details/', views.cenro_report_details, name='CENRO-report-details'),
+    path('cenro/reports/<int:report_id>/attest/', views.cenro_attest_report, name='CENRO-report-attest'),
     path('cenro/templates/',     views.cenro_templates,    name='CENRO-templates'),
-
-
-
     path("cenro/activity-logs/", views.cenro_activitylogs, name="cenro_activity_logs"),
 
 ]

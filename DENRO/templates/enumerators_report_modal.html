@@ -522,7 +522,7 @@
 </style>
 
 <!-- Modal HTML -->
-<div class="modal-overlay" id="reportModal">
+<div class="modal-overlay" id="reportModal" data-supabase-url="{{ supabase_url }}" data-supabase-bucket="{{ supabase_bucket }}" data-current-role="{{ request.session.role|default:'' }}" data-user-fullname="{{ request.session.first_name|default:'' }} {{ request.session.last_name|default:'' }}">
   <button class="modal-close-btn" onclick="closeReportModal()">&times;</button>
   
   <div class="modal-container">
@@ -647,6 +647,8 @@
           <div class="geo-image-preview" id="geoImagePreview">
             <img src="" alt="Geo-tagged location" id="geoImageImg" onclick="openImageInNewTab()">
           </div>
+          <!-- Thumbnails for multiple images -->
+          <div id="geoImageThumbnails" style="display:flex;flex-direction:row;gap:8px;margin-top:8px;flex-wrap:wrap"></div>
           <div class="geo-image-info">
             <div class="geo-image-info-row">
               <span class="geo-image-info-label">Location:</span>
@@ -807,7 +809,11 @@
             <span class="signature-placeholder">No signature available</span>
           </div>
           <div class="attestation-name" id="modalAttestedByName">—</div>
-          <div class="attestation-title" id="modalAttestedByPosition">—<br>(Name & Signature)</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <div class="attestation-title" id="modalAttestedByPosition">—<br>(Name & Signature)</div>
+            <!-- Show attest button for CENRO/PENRO roles -->
+            <button id="btnAttest" class="filter-btn" style="padding:.25rem .5rem; font-size:.75rem; background:#1976d2;" onclick="openSignaturePad('attested')">Attest</button>
+          </div>
         </div>
         
         <div class="attestation-box">
@@ -891,8 +897,8 @@ function populateModal(data) {
   setFieldValue('modalLatitude', data.latitude || '—');
   setFieldValue('modalLongitude', data.longitude || '—');
   
-  // Geo-tagged Image
-  populateGeoImage(data.geo_image_url, data.location, data.geo_captured_at);
+  // Geo-tagged Images (may contain multiple images from Supabase)
+  populateImagesGallery(data.images || []);
   
   // Area Covered
   setFieldValue('modalAreaCovered', data.area_covered);
@@ -1170,37 +1176,74 @@ function populateAttestation(containerId, nameId, positionId, signature, name, p
 }
 
 // Function to populate geo-tagged image
-function populateGeoImage(imageUrl, location, capturedAt) {
+// Build public URL for Supabase-stored image or return original if absolute
+function buildPublicUrl(imagePath) {
+  if (!imagePath) return null;
+  // If already absolute URL, return as-is
+  if (/^https?:\/\//i.test(imagePath)) return imagePath;
+
+  const modal = document.getElementById('reportModal');
+  const supabaseUrl = (modal && modal.dataset && modal.dataset.supabaseUrl) || '';
+  const bucket = (modal && modal.dataset && modal.dataset.supabaseBucket) || 'images';
+
+  if (!supabaseUrl) {
+    // Fallback: return the path as-is
+    return imagePath;
+  }
+
+  // Normalize path
+  let p = imagePath;
+  if (p.startsWith('/')) p = p.substring(1);
+
+  return `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${bucket}/${encodeURI(p)}`;
+}
+
+// Populate gallery for one or many images
+function populateImagesGallery(images) {
   const geoSection = document.getElementById('geoImageSection');
   const geoImageImg = document.getElementById('geoImageImg');
   const geoImageLocation = document.getElementById('geoImageLocation');
   const geoImageCapturedAt = document.getElementById('geoImageCapturedAt');
-  
-  if (imageUrl && imageUrl.trim()) {
-    // Show the section
-    geoSection.style.display = 'block';
-    
-    // Set the image
-    geoImageImg.src = imageUrl;
-    geoImageImg.alt = 'Geo-tagged location image';
-    
-    // Set location
-    if (location && location.trim()) {
-      geoImageLocation.textContent = location;
-    } else {
-      geoImageLocation.textContent = 'Location not specified';
-    }
-    
-    // Set captured date
-    if (capturedAt) {
-      geoImageCapturedAt.textContent = formatDateTime(capturedAt);
-    } else {
-      geoImageCapturedAt.textContent = '—';
-    }
-  } else {
-    // Hide the section if no image
+  const thumbsContainer = document.getElementById('geoImageThumbnails');
+
+  if (!images || images.length === 0) {
     geoSection.style.display = 'none';
+    return;
   }
+
+  // Show section
+  geoSection.style.display = 'block';
+
+  // Use first image as main preview
+  const first = images[0];
+  const firstUrl = buildPublicUrl(first.image || first.image_url || first.image_path || '');
+  geoImageImg.src = firstUrl || '';
+  geoImageImg.alt = 'Geo-tagged location image';
+
+  geoImageLocation.textContent = first.location || first.location_name || 'Location not specified';
+  geoImageCapturedAt.textContent = first.captured_at ? formatDateTime(first.captured_at) : '—';
+
+  // Build thumbnails
+  thumbsContainer.innerHTML = '';
+  images.forEach((imgObj, idx) => {
+    const url = buildPublicUrl(imgObj.image || imgObj.image_url || imgObj.image_path || '');
+    if (!url) return;
+
+    const t = document.createElement('img');
+    t.src = url;
+    t.alt = `Image ${idx + 1}`;
+    t.style.width = '72px';
+    t.style.height = '72px';
+    t.style.objectFit = 'cover';
+    t.style.cursor = 'pointer';
+    t.style.border = imgObj.is_primary ? '2px solid #1976d2' : '1px solid #ddd';
+    t.addEventListener('click', function() {
+      geoImageImg.src = url;
+      geoImageLocation.textContent = imgObj.location || 'Location not specified';
+      geoImageCapturedAt.textContent = imgObj.captured_at ? formatDateTime(imgObj.captured_at) : '—';
+    });
+    thumbsContainer.appendChild(t);
+  });
 }
 
 // Function to open image in new tab
@@ -1233,4 +1276,150 @@ document.addEventListener('keydown', function(e) {
     }
   }
 });
+
+document.addEventListener('DOMContentLoaded', function(){
+  const modal = document.getElementById('reportModal');
+  if(modal){
+    const role = (modal.dataset.currentRole || '').toLowerCase();
+    const btn = document.getElementById('btnAttest');
+    if(btn && !['cenro','penro'].includes(role)) btn.style.display = 'none';
+  }
+});
+
+// ------------------------
+// Signature pad for attestations
+// ------------------------
+
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+}
+
+let signatureCanvas = null;
+let signatureCtx = null;
+let signatureDrawing = false;
+
+function openSignaturePad(kind) {
+  // only allow for CENRO or PENRO roles
+  const modal = document.getElementById('reportModal');
+  const role = (modal && modal.dataset && modal.dataset.currentRole || '').toLowerCase();
+  if (!['cenro', 'penro'].includes(role)) {
+    alert('Only CENRO or PENRO users may attest this report.');
+    return;
+  }
+
+  // Create overlay if not present
+  let overlay = document.getElementById('signatureOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'signatureOverlay';
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.background = 'rgba(0,0,0,0.6)';
+    overlay.style.zIndex = '10000';
+    overlay.style.display = 'flex';
+    overlay.style.justifyContent = 'center';
+    overlay.style.alignItems = 'center';
+
+    overlay.innerHTML = `
+      <div style="background:#fff;padding:16px;border-radius:8px;max-width:720px;width:95%">
+        <h3 style="margin:0 0 8px 0">Sign Attestation</h3>
+        <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+          <label style="font-size:0.85rem;">Name:</label>
+          <input id="sigNameInput" style="flex:1;padding:.4rem" />
+          <label style="font-size:0.85rem;">Position:</label>
+          <input id="sigPositionInput" style="width:180px;padding:.4rem" />
+        </div>
+        <canvas id="sigCanvas" width="680" height="200" style="border:1px solid #ccc;border-radius:4px;width:100%;height:200px;touch-action:none;background:#fff"></canvas>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+          <button onclick="clearSignature()" class="clear-btn">Clear</button>
+          <button onclick="closeSignaturePad()" class="clear-btn">Cancel</button>
+          <button onclick="saveSignature()" class="filter-btn">Save Signature</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    signatureCanvas = document.getElementById('sigCanvas');
+    signatureCtx = signatureCanvas.getContext('2d');
+
+    // Mouse events
+    signatureCanvas.addEventListener('mousedown', function(e){ signatureDrawing = true; signatureCtx.beginPath(); signatureCtx.moveTo(e.offsetX * (signatureCanvas.width/signatureCanvas.clientWidth), e.offsetY * (signatureCanvas.height/signatureCanvas.clientHeight)); });
+    signatureCanvas.addEventListener('mousemove', function(e){ if(signatureDrawing){ signatureCtx.lineTo(e.offsetX * (signatureCanvas.width/signatureCanvas.clientWidth), e.offsetY * (signatureCanvas.height/signatureCanvas.clientHeight)); signatureCtx.stroke(); }});
+    document.addEventListener('mouseup', function(){ signatureDrawing = false; });
+
+    // Touch events
+    signatureCanvas.addEventListener('touchstart', function(e){ e.preventDefault(); signatureDrawing = true; const rect = signatureCanvas.getBoundingClientRect(); const t = e.touches[0]; signatureCtx.beginPath(); signatureCtx.moveTo((t.clientX-rect.left)*(signatureCanvas.width/rect.width), (t.clientY-rect.top)*(signatureCanvas.height/rect.height)); });
+    signatureCanvas.addEventListener('touchmove', function(e){ e.preventDefault(); if(!signatureDrawing) return; const rect = signatureCanvas.getBoundingClientRect(); const t = e.touches[0]; signatureCtx.lineTo((t.clientX-rect.left)*(signatureCanvas.width/rect.width), (t.clientY-rect.top)*(signatureCanvas.height/rect.height)); signatureCtx.stroke(); });
+    signatureCanvas.addEventListener('touchend', function(e){ signatureDrawing = false; });
+  }
+
+  // Prefill name from session if available
+  const nameInput = document.getElementById('sigNameInput');
+  const positionInput = document.getElementById('sigPositionInput');
+  nameInput.value = (modal && modal.dataset && modal.dataset.userFullname) || '';
+  positionInput.value = role === 'penro' ? 'PENRO Head' : (role === 'cenro' ? 'CENRO Head' : '');
+
+  overlay.style.display = 'flex';
+}
+
+function clearSignature(){
+  if(signatureCtx){ signatureCtx.clearRect(0,0,signatureCanvas.width, signatureCanvas.height); }
+}
+
+function closeSignaturePad(){
+  const overlay = document.getElementById('signatureOverlay');
+  if(overlay) overlay.style.display = 'none';
+}
+
+function saveSignature(){
+  const overlay = document.getElementById('signatureOverlay');
+  const name = document.getElementById('sigNameInput').value.trim();
+  const position = document.getElementById('sigPositionInput').value.trim();
+  if(!name){ alert('Please enter your name before signing.'); return; }
+
+  // Get data URL
+  const dataUrl = signatureCanvas.toDataURL('image/png');
+
+  // Determine report id from modal
+  const reportIdText = document.getElementById('modalReportId').textContent || '';
+  const reportId = reportIdText.replace('#','').trim();
+  if(!reportId){ alert('Cannot determine report id.'); return; }
+
+  const payload = {
+    attested_by_name: name,
+    attested_by_position: position,
+    signature_dataurl: dataUrl
+  };
+
+  const csrftoken = getCookie('csrftoken');
+
+  fetch(`/cenro/reports/${reportId}/attest/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken || ''
+    },
+    body: JSON.stringify(payload)
+  }).then(r => r.json()).then(resp => {
+    if(resp && resp.success){
+      // Update attested by UI
+      const container = document.getElementById('modalAttestedBySigContainer');
+      container.innerHTML = `<img src="${resp.attested_by_signature_url}" alt="Attested signature">`;
+      document.getElementById('modalAttestedByName').textContent = name || '—';
+      document.getElementById('modalAttestedByPosition').innerHTML = (position || '—') + '<br>(Name & Signature)';
+      closeSignaturePad();
+      alert('Attestation saved.');
+    } else {
+      alert('Failed to save attestation: ' + (resp.error || 'unknown error'));
+    }
+  }).catch(err => {
+    console.error(err);
+    alert('Error saving attestation.');
+  });
+}
 </script>

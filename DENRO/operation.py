@@ -7,6 +7,9 @@ from django.conf import settings
 import logging
 from supabase import create_client
 import os
+import io
+import base64
+import time
 
 logger = logging.getLogger(__name__)
 SUPABASE_URL = os.getenv("SUPABASE_URL")
@@ -963,29 +966,173 @@ def get_report_details(report_id, cenro_id=None):
         return None
     
 
+def get_report_images(report_id):
+    """
+    Fetch images related to a report from Supabase storage/join table.
+
+    Returns a list of dicts with keys: id, image, latitude, longitude, location,
+    captured_at, qr_code, is_primary, image_sequence
+    """
+    images = []
+    if not report_id:
+        return images
+
+    try:
+        resp = supabase.table("reported_images") \
+            .select("image_id,is_primary,image_sequence,geo_tagged_images(id,image,latitude,longitude,location,captured_at,qr_code)") \
+            .eq("report_id", report_id) \
+            .eq("report_type", "enumerator") \
+            .execute()
+
+        reported = getattr(resp, 'data', None) or []
+
+        # Some Supabase client versions return unsorted results; sort by image_sequence if available
+        try:
+            reported.sort(key=lambda x: (x.get('image_sequence') is None, x.get('image_sequence') or 0))
+        except Exception:
+            pass
+
+        for ri in reported:
+            geo = ri.get('geo_tagged_images')
+            if not geo:
+                continue
+            images.append({
+                'id': geo.get('id'),
+                'image': geo.get('image'),
+                'latitude': geo.get('latitude'),
+                'longitude': geo.get('longitude'),
+                'location': geo.get('location'),
+                'captured_at': geo.get('captured_at'),
+                'qr_code': geo.get('qr_code'),
+                'is_primary': ri.get('is_primary', False),
+                'image_sequence': ri.get('image_sequence', None),
+            })
+
+    except Exception as e:
+        logger.exception(f"Error fetching report images for report_id=%s: %s", report_id, e)
+
+    return images
+
+
+def save_attestation(report_id, attested_by_name, attested_by_position, signature_dataurl, current_user_id=None):
+    """Save attestation record and upload signature image to Supabase storage.
+
+    Returns (True, public_url) on success, or (False, error_message) on failure.
+    """
+    try:
+        if not report_id:
+            return False, 'Invalid report id'
+
+        # Decode data URL
+        if not signature_dataurl or not signature_dataurl.startswith('data:'):
+            return False, 'Invalid signature data'
+
+        header, encoded = signature_dataurl.split(',', 1)
+        try:
+            data = base64.b64decode(encoded)
+        except Exception as e:
+            return False, f'Decoding error: {e}'
+
+        # Prepare file path
+        bucket = os.getenv('SUPABASE_BUCKET') or 'images'
+        filename = f"signatures/report_{report_id}_attested_{int(time.time())}.png"
+
+        # Upload to Supabase storage
+        try:
+            # supabase.storage.from_() is preferred; depending on client version use from_ or from
+            storage = getattr(supabase, 'storage')
+            from_call = None
+            try:
+                from_call = storage.from_(bucket)
+            except Exception:
+                from_call = storage.from_bucket(bucket)
+
+            # Upload bytes
+            bio = io.BytesIO(data)
+            # Some clients expect a file-like object, others expect bytes
+            upload_resp = from_call.upload(filename, bio)
+        except Exception as e:
+            # If upload fails, continue but record signature as data URL fallback
+            logger.exception('Supabase upload failed: %s', e)
+            public_url = None
+        else:
+            # Try to get public URL
+            try:
+                pub = from_call.get_public_url(filename)
+                # pub may be dict {'publicURL': '...'} or object
+                public_url = None
+                if isinstance(pub, dict):
+                    public_url = pub.get('publicURL') or pub.get('public_url') or list(pub.values())[0]
+                else:
+                    # try attribute
+                    public_url = getattr(pub, 'publicURL', None) or getattr(pub, 'public_url', None)
+            except Exception:
+                public_url = None
+
+        # Build signature url fallback to data URL if public_url not available
+        signature_url_to_store = public_url or signature_dataurl
+
+        # Insert or update attestation_notations and link to enumerators_report
+        with connection.cursor() as cur:
+            # Check existing attestation_id
+            cur.execute("SELECT attestation_id FROM enumerators_report WHERE id = %s;", [report_id])
+            row = cur.fetchone()
+            existing_id = row[0] if row else None
+
+            if existing_id:
+                cur.execute(
+                    """
+                    UPDATE attestation_notations
+                    SET attested_by_name = %s,
+                        attested_by_position = %s,
+                        attested_by_signature = %s
+                    WHERE id = %s
+                    RETURNING id;
+                    """,
+                    [attested_by_name, attested_by_position, signature_url_to_store, existing_id]
+                )
+                cur.fetchone()
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO attestation_notations (attested_by_name, attested_by_position, attested_by_signature)
+                    VALUES (%s, %s, %s)
+                    RETURNING id;
+                    """,
+                    [attested_by_name, attested_by_position, signature_url_to_store]
+                )
+                new_id = cur.fetchone()[0]
+                cur.execute("UPDATE enumerators_report SET attestation_id = %s WHERE id = %s;", [new_id, report_id])
+
+        return True, signature_url_to_store
+
+    except DatabaseError as e:
+        logger.exception('DB error saving attestation: %s', e)
+        return False, str(e)
+    except Exception as e:
+        logger.exception('Unexpected error saving attestation: %s', e)
+        return False, str(e)
+
+
 
 
 def get_activity_logs():
-    conn = connect_db()
-    cursor = conn.cursor()
-
+    """Fetch activity logs via DB function `get_activity_logs()` using Django connection."""
     try:
-        cursor.execute("SELECT * FROM get_activity_logs();")
-        logs = cursor.fetchall()
+        with connection.cursor() as cur:
+            cur.execute("SELECT * FROM get_activity_logs();")
+            logs = cur.fetchall()
 
-        log_list = []
-        for row in logs:
-            log_list.append({
-                "task": row[0],
-                "user_id": row[1],
-                "name": row[2],
-                "timestamp": row[3],
-            })
+            log_list = []
+            for row in logs:
+                log_list.append({
+                    "task": row[0],
+                    "user_id": row[1],
+                    "name": row[2],
+                    "timestamp": row[3],
+                })
 
-        return log_list
+            return log_list
     except Exception as e:
-        print("Error fetching logs:", e)
+        logger.exception("Error fetching activity logs: %s", e)
         return []
-    finally:
-        cursor.close()
-        conn.close()
