@@ -2,10 +2,109 @@
 {% extends "base.html" %}
 {% block title %}PENRO Dashboard{% endblock %}
 {% block content %}
-  <div class="stat-grid">
-    <div class="stat-card"><h3>APPROVED</h3><div class="value">420</div></div>
-    <div class="stat-card"><h3>REJECTED</h3><div class="value">120</div></div>
-    <div class="stat-card"><h3>PENDING</h3><div class="value">210</div></div>
-    <div class="stat-card"><h3>EVALUATORS</h3><div class="value">95</div></div>
-  </div>
+<div class="dashboard-container" style="padding: 30px;">
+
+  <!-- BOTH CHARTS IN ONE DIVISION -->
+  <div style="display: flex; justify-content: space-between; gap: 40px; width: 100%;">
+
+
+      <!-- LEFT COLUMN — BAR CHART -->
+      <div style="
+          width: 55%;
+          background: #ffffff;
+          padding: 20px;
+          border-radius: 10px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      ">
+          <h2 style="margin-bottom: 10px; color: #222;">Most Enumerated Structures</h2>
+          <canvas id="barChart"></canvas>
+      </div>
+
+
+      <!-- RIGHT COLUMN — PIE CHART + LEGEND -->
+      <div style="
+          width: 40%;
+          background: #ffffff;
+          padding: 20px;
+          border-radius: 10px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      ">
+
+          <h2 style="margin-bottom: 10px; color: #222;">Protected Areas in Cebu</h2>
+          <canvas id="pieChart"></canvas>
+
+          <!-- Circle Legend -->
+         <!-- LEGEND -->
+            <div style="font-size: 12px; margin-top: 15px; color: #333;">
+                <h3 style="margin-bottom: 8px; color: #222; font-size: 14px;">Legend</h3>
+
+                <div style="display: flex; align-items: center; margin-bottom: 6px;">
+                    <span style="width: 12px; height: 12px; background: #4dc9f6; border-radius: 50%; margin-right: 10px;"></span>
+                    Central Cebu Protected Landscape (CCPL)
+                </div>
+
+                <div style="display: flex; align-items: center; margin-bottom: 6px;">
+                    <span style="width: 12px; height: 12px; background: #f67019; border-radius: 50%; margin-right: 10px;"></span>
+                    Olango Island Wildlife Sanctuary (OIWS)
+                </div>
+
+                <div style="display: flex; align-items: center; margin-bottom: 6px;">
+                    <span style="width: 12px; height: 12px; background: #f53794; border-radius: 50%; margin-right: 10px;"></span>
+                    Moalboal Marine Protected Area (MPA)
+                </div>
+            </div>
+
+
+      </div>
+
+  </div> <!-- end row div -->
+
+</div>
+
+
+<script>
+/* ================= BAR CHART ================= */
+const barCtx = document.getElementById('barChart');
+new Chart(barCtx, {
+    type: 'bar',
+    data: {
+        labels: ['Household', 'Business', 'Farm', 'Commercial', 'Industrial'],
+        datasets: [{
+            label: 'Count',
+            data: [120, 90, 70, 40, 30],
+            backgroundColor: '#1abc9c'
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } }
+    }
+});
+
+
+/* ================= PIE CHART ================= */
+const pieCtx = document.getElementById('pieChart');
+
+new Chart(pieCtx, {
+    type: 'pie',
+    data: {
+        labels: [
+            'Central Cebu Protected Landscape (CCPL)',
+            'Olango Island Wildlife Sanctuary (OIWS)',
+            'Moalboal Marine Protected Area (MPA)'
+        ],
+        datasets: [{
+            data: [180, 75, 40], // Replace with real DB values
+            backgroundColor: ['#4dc9f6', '#f67019', '#f53794']
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } }
+    }
+});
+</script>
+
 {% endblock %}
+
+

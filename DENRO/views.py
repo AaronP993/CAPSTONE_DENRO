@@ -22,6 +22,36 @@ def create_account_view(request):
 def superadmin_dashboard(request):
     return render(request, 'SUPER_ADMIN/SA_dashboard.html')
 
+@login_required
+@role_required(['Super Admin'])
+def region_admin_management_view(request):
+    return render(request, 'SUPER_ADMIN/region_admin_management.html')
+
+@login_required
+@role_required(['Super Admin'])
+def pending_registration_view(request):
+    return render(request, 'SUPER_ADMIN/pending_registration.html')
+
+@login_required
+@role_required(['Super Admin'])
+def authentication_logs_view(request):
+    return render(request, 'SUPER_ADMIN/authentication_logs.html')
+
+@login_required
+@role_required(['Super Admin'])
+def activity_logs_view(request):
+    return render(request, 'SUPER_ADMIN/activity_logs.html')
+
+@login_required
+@role_required(['Super Admin'])
+def all_users_view(request):
+    return render(request, 'SUPER_ADMIN/all_users.html')
+
+@login_required
+@role_required(['Super Admin'])
+def profile_view(request):
+    return render(request, 'SUPER_ADMIN/profile.html')
+
 @login_required  
 @role_required(['Admin'])
 def admin_dashboard(request):
@@ -37,10 +67,27 @@ def penro_dashboard(request):
 def cenro_dashboard(request):
     return render(request, 'CENRO/CENRO_dashboard.html')
 
+from .operation import get_activity_logs
+
 @login_required
 @role_required(['CENRO'])
 def cenro_activitylogs(request):
-    return render(request, 'CENRO/CENRO_activitylogs.html')
+    logs = get_activity_logs()
+    context = {
+        "top_nav_title": "Cenro Activity Logs",
+        "activity_logs": logs
+    }
+    return render(request, 'CENRO/CENRO_activitylogs.html', context)
+
+@login_required
+@role_required(['PENRO'])
+def penro_activitylogs(request):
+    logs = get_activity_logs()  # Reuse the same function for simplicity; modify if PENRO specific needed
+    context = {
+        "top_nav_title": "Penro Activity Logs",
+        "activity_logs": logs
+    }
+    return render(request, 'PENRO/PENRO_activitylogs.html', context)
 
 @login_required
 @role_required(['CENRO'])
@@ -137,6 +184,28 @@ def cenro_report_details(request, report_id):
 
 
 
+# SUPER ADMIN VIEWS
+
+def superadmin_dashboard(request):
+    return render(request, 'SUPER_ADMIN/SA_dashboard.html')
+
+def region_admin_management_view(request):
+    return render(request, 'SUPER_ADMIN/region_admin_management.html')
+
+def pending_registration_view(request):
+    return render(request, 'SUPER_ADMIN/pending_registration.html')
+
+def authentication_logs_view(request):
+    return render(request, 'SUPER_ADMIN/authentication_logs.html')
+
+def activity_logs_view(request):
+    return render(request, 'SUPER_ADMIN/activity_logs.html')
+
+def all_users_view(request):
+    return render(request, 'SUPER_ADMIN/all_users.html')
+
+def profile_view(request):
+    return render(request, 'SUPER_ADMIN/profile.html')
 
 
 
@@ -146,14 +215,4 @@ def cenro_report_details(request, report_id):
 
 
 
-
-
-from django.shortcuts import render
-from .operation import get_activity_logs
-
-def cenro_activity_logs(request):
-    logs = get_activity_logs()
-
-    return render(request, "cenro/activity_logs.html", {
-        "activity_logs": logs
-    })
+# Removed redundant duplicated function definition `cenro_activity_logs` and import to keep code clean

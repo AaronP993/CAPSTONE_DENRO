@@ -966,26 +966,20 @@ def get_report_details(report_id, cenro_id=None):
 
 
 def get_activity_logs():
-    conn = connect_db()
-    cursor = conn.cursor()
-
     try:
-        cursor.execute("SELECT * FROM get_activity_logs();")
-        logs = cursor.fetchall()
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT * FROM get_activity_logs();")
+            logs = cursor.fetchall()
 
-        log_list = []
-        for row in logs:
-            log_list.append({
-                "task": row[0],
-                "user_id": row[1],
-                "name": row[2],
-                "timestamp": row[3],
-            })
-
-        return log_list
+            log_list = []
+            for row in logs:
+                log_list.append({
+                    "task": row[0],
+                    "user_id": row[1],
+                    "name": row[2],
+                    "timestamp": row[3],
+                })
+            return log_list
     except Exception as e:
         print("Error fetching logs:", e)
         return []
-    finally:
-        cursor.close()
-        conn.close()
