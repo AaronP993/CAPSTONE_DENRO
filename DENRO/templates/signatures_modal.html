@@ -1,0 +1,160 @@
+<!-- signatures_modal.html -->
+<script>
+// ------------------------
+// Signature pad for attestations
+// ------------------------
+
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+}
+
+let signatureCanvas = null;
+let signatureCtx = null;
+let signatureDrawing = false;
+let currentSignatureType = 'attested'; // 'attested' or 'noted'
+
+function openSignaturePad(kind) {
+  currentSignatureType = kind || 'attested';
+  
+  // only allow for CENRO or PENRO roles
+  const modal = document.getElementById('reportModal');
+  const role = (modal && modal.dataset && modal.dataset.currentRole || '').toLowerCase();
+  if (!['cenro', 'penro'].includes(role)) {
+    alert('Only CENRO or PENRO users may sign this report.');
+    return;
+  }
+
+  // Create overlay if not present
+  let overlay = document.getElementById('signatureOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'signatureOverlay';
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.background = 'rgba(0,0,0,0.6)';
+    overlay.style.zIndex = '10000';
+    overlay.style.display = 'flex';
+    overlay.style.justifyContent = 'center';
+    overlay.style.alignItems = 'center';
+
+    overlay.innerHTML = `
+      <div style="background:#fff;padding:16px;border-radius:8px;max-width:720px;width:95%">
+        <h3 style="margin:0 0 8px 0" id="sigModalTitle">Sign Attestation</h3>
+        <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+          <label style="font-size:0.85rem;">Name:</label>
+          <input id="sigNameInput" style="flex:1;padding:.4rem" />
+          <label style="font-size:0.85rem;">Position:</label>
+          <input id="sigPositionInput" style="width:180px;padding:.4rem" />
+        </div>
+        <canvas id="sigCanvas" width="680" height="200" style="border:1px solid #ccc;border-radius:4px;width:100%;height:200px;touch-action:none;background:#fff"></canvas>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+          <button onclick="clearSignature()" class="clear-btn">Clear</button>
+          <button onclick="closeSignaturePad()" class="clear-btn">Cancel</button>
+          <button onclick="saveSignature()" class="filter-btn">Save Signature</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    signatureCanvas = document.getElementById('sigCanvas');
+    signatureCtx = signatureCanvas.getContext('2d');
+
+    // Mouse events
+    signatureCanvas.addEventListener('mousedown', function(e){ signatureDrawing = true; signatureCtx.beginPath(); signatureCtx.moveTo(e.offsetX * (signatureCanvas.width/signatureCanvas.clientWidth), e.offsetY * (signatureCanvas.height/signatureCanvas.clientHeight)); });
+    signatureCanvas.addEventListener('mousemove', function(e){ if(signatureDrawing){ signatureCtx.lineTo(e.offsetX * (signatureCanvas.width/signatureCanvas.clientWidth), e.offsetY * (signatureCanvas.height/signatureCanvas.clientHeight)); signatureCtx.stroke(); }});
+    document.addEventListener('mouseup', function(){ signatureDrawing = false; });
+
+    // Touch events
+    signatureCanvas.addEventListener('touchstart', function(e){ e.preventDefault(); signatureDrawing = true; const rect = signatureCanvas.getBoundingClientRect(); const t = e.touches[0]; signatureCtx.beginPath(); signatureCtx.moveTo((t.clientX-rect.left)*(signatureCanvas.width/rect.width), (t.clientY-rect.top)*(signatureCanvas.height/rect.height)); });
+    signatureCanvas.addEventListener('touchmove', function(e){ e.preventDefault(); if(!signatureDrawing) return; const rect = signatureCanvas.getBoundingClientRect(); const t = e.touches[0]; signatureCtx.lineTo((t.clientX-rect.left)*(signatureCanvas.width/rect.width), (t.clientY-rect.top)*(signatureCanvas.height/rect.height)); signatureCtx.stroke(); });
+    signatureCanvas.addEventListener('touchend', function(e){ signatureDrawing = false; });
+  }
+
+  // Update title and prefill based on signature type
+  const titleEl = document.getElementById('sigModalTitle');
+  if (titleEl) {
+    titleEl.textContent = currentSignatureType === 'noted' ? 'Sign Notation' : 'Sign Attestation';
+  }
+  
+  const nameInput = document.getElementById('sigNameInput');
+  const positionInput = document.getElementById('sigPositionInput');
+  nameInput.value = (modal && modal.dataset && modal.dataset.userFullname) || '';
+  positionInput.value = role === 'penro' ? 'PENRO Head' : (role === 'cenro' ? 'CENRO Head' : '');
+
+  overlay.style.display = 'flex';
+}
+
+function clearSignature(){
+  if(signatureCtx){ signatureCtx.clearRect(0,0,signatureCanvas.width, signatureCanvas.height); }
+}
+
+function closeSignaturePad(){
+  const overlay = document.getElementById('signatureOverlay');
+  if(overlay) overlay.style.display = 'none';
+}
+
+function saveSignature(){
+  const overlay = document.getElementById('signatureOverlay');
+  const name = document.getElementById('sigNameInput').value.trim();
+  const position = document.getElementById('sigPositionInput').value.trim();
+  if(!name){ alert('Please enter your name before signing.'); return; }
+
+  // Get data URL
+  const dataUrl = signatureCanvas.toDataURL('image/png');
+
+  // Determine report id from modal
+  const reportIdText = document.getElementById('modalReportId').textContent || '';
+  const reportId = reportIdText.replace('#','').trim();
+  if(!reportId){ alert('Cannot determine report id.'); return; }
+
+  const payload = currentSignatureType === 'noted' ? {
+    noted_by_name: name,
+    noted_by_position: position,
+    signature_dataurl: dataUrl
+  } : {
+    attested_by_name: name,
+    attested_by_position: position,
+    signature_dataurl: dataUrl
+  };
+
+  const csrftoken = getCookie('csrftoken');
+  const endpoint = currentSignatureType === 'noted' ? 'note' : 'attest';
+
+  fetch(`/cenro/reports/${reportId}/${endpoint}/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrftoken || ''
+    },
+    body: JSON.stringify(payload)
+  }).then(r => r.json()).then(resp => {
+    if(resp && resp.success){
+      // Update UI based on signature type
+      if (currentSignatureType === 'noted') {
+        const container = document.getElementById('modalNotedBySigContainer');
+        container.innerHTML = `<img src="${resp.noted_by_signature_url || resp.signature_url}" alt="Noted signature">`;
+        document.getElementById('modalNotedByName').textContent = name || '—';
+        document.getElementById('modalNotedByPosition').innerHTML = (position || '—') + '<br>(Name & Signature)';
+        alert('Notation saved.');
+      } else {
+        const container = document.getElementById('modalAttestedBySigContainer');
+        container.innerHTML = `<img src="${resp.attested_by_signature_url || resp.signature_url}" alt="Attested signature">`;
+        document.getElementById('modalAttestedByName').textContent = name || '—';
+        document.getElementById('modalAttestedByPosition').innerHTML = (position || '—') + '<br>(Name & Signature)';
+        alert('Attestation saved.');
+      }
+      closeSignaturePad();
+    } else {
+      alert('Failed to save signature: ' + (resp.error || 'unknown error'));
+    }
+  }).catch(err => {
+    console.error(err);
+    alert('Error saving attestation.');
+  });
+}
+</script>

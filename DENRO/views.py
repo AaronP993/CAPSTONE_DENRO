@@ -10,7 +10,9 @@ from .operation import (
     get_report_details,
     get_report_images,
     get_activity_logs,
+    export_reports,
 )
+from django.contrib import messages
 from .decorators import login_required, role_required, can_create_users
 from datetime import datetime 
 import os
@@ -127,6 +129,26 @@ def cenro_templates(request):
 
 @login_required
 @role_required(['CENRO'])
+def cenro_export_reports(request):
+    """Export filtered reports as PDF, Word, or Excel"""
+    cenro_id = request.session.get('cenro_id')
+    format_type = request.GET.get('format', 'pdf')
+    
+    from_date_str = request.GET.get('from_date')
+    to_date_str = request.GET.get('to_date')
+    establishment_type = request.GET.get('establishment_type')
+    pa_id_str = request.GET.get('pa_id')
+    establishment_status = request.GET.get('establishment_status')
+    
+    from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date() if from_date_str else None
+    to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date() if to_date_str else None
+    pa_id = int(pa_id_str) if pa_id_str else None
+    
+    reports = get_enumerator_reports(cenro_id, from_date, to_date, establishment_type, pa_id, establishment_status)
+    return export_reports(reports, format_type)
+
+@login_required
+@role_required(['CENRO'])
 def cenro_report_details(request, report_id):
     """
     API endpoint to get detailed report information for the modal
@@ -144,6 +166,39 @@ def cenro_report_details(request, report_id):
     report_data['images'] = images
 
     return JsonResponse(report_data)
+
+
+@login_required
+@role_required(['CENRO', 'PENRO'])
+def cenro_note_report(request, report_id):
+    """Endpoint to save notation (noted_by) and signature for a report."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    try:
+        import json
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON payload'}, status=400)
+
+    noted_by_name = payload.get('noted_by_name') or f"{request.session.get('first_name','').strip()} {request.session.get('last_name','').strip()}".strip()
+    noted_by_position = payload.get('noted_by_position') or ''
+    signature_dataurl = payload.get('signature_dataurl')
+
+    if not signature_dataurl:
+        return JsonResponse({'error': 'Signature data is required'}, status=400)
+
+    try:
+        from . import operation as op
+        current_user_id = request.session.get('user_id')
+        ok, info = op.save_notation(report_id, noted_by_name, noted_by_position, signature_dataurl, current_user_id)
+        if not ok:
+            return JsonResponse({'error': info or 'Failed to save notation'}, status=500)
+        return JsonResponse({'success': True, 'noted_by_signature_url': info, 'signature_url': info})
+    except Exception as e:
+        import logging
+        logging.exception('Error in cenro_note_report')
+        return JsonResponse({'error': 'Internal server error'}, status=500)
 
 
 @login_required
@@ -199,3 +254,118 @@ def cenro_activity_logs(request):
     return render(request, "cenro/activity_logs.html", {
         "activity_logs": logs
     })
+
+
+
+
+
+# Admin
+
+@login_required
+@role_required(['Admin'])
+def protected_areas(request):
+    from . import operation as op
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'delete':
+            pa_id = request.POST.get('pa_id')
+            if pa_id:
+                success, message = op.delete_protected_area(int(pa_id))
+                if success:
+                    messages.success(request, message)
+                else:
+                    messages.error(request, message)
+        else:
+            # Add new protected area
+            name = request.POST.get('name', '').strip()
+            file_obj = request.FILES.get('file')
+            
+            if not name:
+                messages.error(request, 'Protected area name is required.')
+            elif not file_obj:
+                messages.error(request, 'File upload is required.')
+            else:
+                success, message = op.add_protected_area(name, file_obj)
+                if success:
+                    messages.success(request, message)
+                else:
+                    messages.error(request, message)
+        
+        return redirect('protected-areas')
+    
+    # GET request - display protected areas
+    protected_areas_list = op.get_protected_areas()
+    
+    return render(request, 'ADMIN/ProtectedArea.html', {
+        'protected_areas': protected_areas_list,
+        'supabase_url': os.getenv('SUPABASE_URL'),
+        'supabase_bucket': os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos'),
+    })
+
+
+@login_required
+@role_required(['Admin'])
+def convert_shapefile_to_geojson(request, file_path):
+    """Convert shapefile to GeoJSON for map viewing."""
+    import tempfile
+    import zipfile
+    from supabase import create_client
+    
+    try:
+        supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_KEY'))
+        bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Try as zip first
+            try:
+                file_data = supabase.storage.from_(bucket).download(file_path)
+                zip_path = os.path.join(tmpdir, 'shapefile.zip')
+                with open(zip_path, 'wb') as f:
+                    f.write(file_data)
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extractall(tmpdir)
+                shp_file = next((f for f in os.listdir(tmpdir) if f.endswith('.shp')), None)
+                if shp_file:
+                    shp_path = os.path.join(tmpdir, shp_file)
+                else:
+                    return JsonResponse({'error': 'No .shp file in zip'}, status=400)
+            except zipfile.BadZipFile:
+                # Not a zip, treat as individual shapefile components
+                # Get base name without extension
+                base_name = os.path.basename(file_path).rsplit('.', 1)[0]
+                dir_path = os.path.dirname(file_path)
+                
+                # Download all components with same base name
+                extensions = ['.shp', '.shx', '.dbf', '.prj', '.cpg']
+                for ext in extensions:
+                    try:
+                        component_path = f"{dir_path}/{base_name}{ext}"
+                        component_data = supabase.storage.from_(bucket).download(component_path)
+                        with open(os.path.join(tmpdir, f'{base_name}{ext}'), 'wb') as f:
+                            f.write(component_data)
+                    except:
+                        if ext in ['.shp', '.shx', '.dbf']:  # Required files
+                            raise
+                
+                shp_path = os.path.join(tmpdir, f'{base_name}.shp')
+            
+            # Convert to GeoJSON
+            import fiona
+            
+            features = []
+            with fiona.open(shp_path) as src:
+                for feature in src:
+                    features.append({
+                        'type': 'Feature',
+                        'properties': dict(feature['properties']),
+                        'geometry': dict(feature['geometry'])
+                    })
+            
+            return JsonResponse({'type': 'FeatureCollection', 'features': features})
+    
+    except Exception as e:
+        import logging
+        logging.exception('Error converting shapefile')
+        return JsonResponse({'error': str(e)}, status=500)

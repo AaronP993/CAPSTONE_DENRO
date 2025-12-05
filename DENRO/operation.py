@@ -694,11 +694,10 @@ def get_establishment_types_for_cenro(cenro_id):
 
 def get_protected_areas_for_cenro(cenro_id):
     """
-    Get list of protected areas for a specific CENRO.
-    Gets PAs from reports by this CENRO's enumerators.
+    Get list of all protected areas from Supabase.
     
     Args:
-        cenro_id: The CENRO office ID
+        cenro_id: The CENRO office ID (not used, kept for compatibility)
     
     Returns:
         List of dictionaries with id and name
@@ -706,28 +705,11 @@ def get_protected_areas_for_cenro(cenro_id):
     protected_areas = []
     
     try:
-        with connection.cursor() as cur:
-            query = """
-                SELECT DISTINCT 
-                    pa.id,
-                    pa.name
-                FROM enumerators_report er
-                LEFT JOIN users u ON er.enumerator_id = u.id
-                LEFT JOIN protected_areas pa ON er.pa_id = pa.id
-                WHERE u.cenro_id = %s
-                AND pa.id IS NOT NULL
-                ORDER BY pa.name;
-            """
-            
-            cur.execute(query, [cenro_id])
-            
-            for row in cur.fetchall():
-                protected_areas.append({
-                    'id': row[0],
-                    'name': row[1]
-                })
+        # Fetch all PA details from Supabase
+        result = supabase.table('protected_areas').select('id, name').order('name').execute()
+        protected_areas = result.data if result.data else []
                 
-    except DatabaseError as e:
+    except Exception as e:
         logger.error(f"Error fetching protected areas: {e}")
         
     return protected_areas
@@ -746,27 +728,17 @@ def get_report_details(report_id, cenro_id=None):
     """
     try:
         with connection.cursor() as cur:
+            # Select all enumerators_report columns and relevant joined fields. Using er.* makes it easier
+            # to return every report column even if NULL, satisfying the requirement to "get all the form".
             query = """
-                SELECT 
-                    er.id,
-                    er.establishment_name,
-                    er.proponent_name,
-                    er.pa_name,
-                    er.enumerator_name,
-                    er.report_date,
-                    er.informant_name,
-                    er.remarks,
-                    er.created_at,
-                    er.updated_at,
-                    er.enumerator_signature,
-                    er.enumerator_signature_date,
-                    er.informant_signature,
-                    er.informant_signature_date,
-                    u.first_name || ' ' || u.last_name as enumerator_full_name,
+                SELECT
+                    er.*, 
+                    u.first_name || ' ' || u.last_name AS enumerator_full_name,
                     u.cenro_id,
                     ep.establishment_type,
                     ep.establishment_status,
                     ep.description,
+                    
                     ep.lot_status,
                     ep.land_classification,
                     ep.title_no,
@@ -798,11 +770,11 @@ def get_report_details(report_id, cenro_id=None):
                     ep.pto_no,
                     ep.pto_date_issued,
                     ep.other_emb,
-                    gti.image as geo_image_url,
-                    gti.latitude as geo_latitude,
-                    gti.longitude as geo_longitude,
-                    gti.location as geo_location,
-                    gti.captured_at as geo_captured_at,
+                    gti.image AS geo_image_url,
+                    gti.latitude AS geo_latitude,
+                    gti.longitude AS geo_longitude,
+                    gti.location AS geo_location,
+                    gti.captured_at AS geo_captured_at,
                     an.attested_by_name,
                     an.attested_by_position,
                     an.attested_by_signature,
@@ -816,149 +788,192 @@ def get_report_details(report_id, cenro_id=None):
                 LEFT JOIN attestation_notations an ON er.attestation_id = an.id
                 WHERE er.id = %s
             """
-            
+
             params = [report_id]
-            
-            # If cenro_id provided, verify access
+
             if cenro_id:
                 query += " AND u.cenro_id = %s"
                 params.append(cenro_id)
-            
+
             cur.execute(query, params)
             row = cur.fetchone()
-            
+
             if not row:
                 return None
-            
 
-            
-            # Build permits array
+            # Build dictionary using cursor description so every column from er.* is present
+            columns = [desc[0] for desc in cur.description]
+            data = dict(zip(columns, row))
+
+            # If proponent_name is missing, try plausible fallbacks in order:
+            # 1) If report links to a leased property profile (profile_id), use its proponent_name
+            # 2) If report has proponent_id, fetch from proponents table
+            if (not data.get('proponent_name') or str(data.get('proponent_name')).strip() == ''):
+                # Try leased property profile (common in this schema)
+                profile_id = data.get('profile_id') or data.get('profile')
+                if profile_id:
+                    try:
+                        cur.execute("SELECT proponent_name FROM leasedpropertyprofile WHERE id = %s;", [profile_id])
+                        p_row = cur.fetchone()
+                        if p_row and p_row[0]:
+                            data['proponent_name'] = p_row[0]
+                    except Exception:
+                        # ignore lookup errors and continue to next fallback
+                        pass
+
+                # Fallback: try proponents table if still missing
+                if (not data.get('proponent_name') or str(data.get('proponent_name')).strip() == '') and data.get('proponent_id'):
+                    try:
+                        cur.execute("SELECT name FROM proponents WHERE id = %s;", [data.get('proponent_id')])
+                        p_row = cur.fetchone()
+                        if p_row and p_row[0]:
+                            data['proponent_name'] = p_row[0]
+                    except Exception:
+                        # ignore lookup errors - leave proponent_name as-is
+                        pass
+
+            # Build permits array using keys that may be present from ep.*
             permits = []
-            
-            # Mayor's Permit
-            if row[28] or row[29] or row[30]:
+            if data.get('mayor_permit_no') or data.get('mayor_permit_issued') or data.get('mayor_permit_exp'):
                 permits.append({
                     'name': "Mayor's Permit",
-                    'number': row[28],
-                    'issued': row[29].isoformat() if row[29] else None,
-                    'expiry': row[30].isoformat() if row[30] else None
+                    'number': data.get('mayor_permit_no'),
+                    'issued': data.get('mayor_permit_issued').isoformat() if data.get('mayor_permit_issued') else None,
+                    'expiry': data.get('mayor_permit_exp').isoformat() if data.get('mayor_permit_exp') else None
                 })
-            
-            # Business Permit
-            if row[31] or row[32] or row[33]:
+
+            if data.get('business_permit_no') or data.get('business_permit_issued') or data.get('business_permit_exp'):
                 permits.append({
                     'name': 'Business Permit',
-                    'number': row[31],
-                    'issued': row[32].isoformat() if row[32] else None,
-                    'expiry': row[33].isoformat() if row[33] else None
+                    'number': data.get('business_permit_no'),
+                    'issued': data.get('business_permit_issued').isoformat() if data.get('business_permit_issued') else None,
+                    'expiry': data.get('business_permit_exp').isoformat() if data.get('business_permit_exp') else None
                 })
-            
-            # Building Permit
-            if row[34] or row[35] or row[36]:
+
+            if data.get('building_permit_no') or data.get('building_permit_issued') or data.get('building_permit_exp'):
                 permits.append({
                     'name': 'Building Permit',
-                    'number': row[34],
-                    'issued': row[35].isoformat() if row[35] else None,
-                    'expiry': row[36].isoformat() if row[36] else None
+                    'number': data.get('building_permit_no'),
+                    'issued': data.get('building_permit_issued').isoformat() if data.get('building_permit_issued') else None,
+                    'expiry': data.get('building_permit_exp').isoformat() if data.get('building_permit_exp') else None
                 })
-            
-            # PAMB Resolution
-            if row[37] or row[38]:
+
+            if data.get('pamb_resolution_no') or data.get('pamb_date_issued'):
                 permits.append({
                     'name': 'PAMB Resolution',
-                    'number': row[37],
-                    'issued': row[38].isoformat() if row[38] else None,
+                    'number': data.get('pamb_resolution_no'),
+                    'issued': data.get('pamb_date_issued').isoformat() if data.get('pamb_date_issued') else None,
                     'expiry': None
                 })
-            
-            # SAPA
-            if row[39] or row[40]:
+
+            if data.get('sapa_no') or data.get('sapa_date_issued'):
                 permits.append({
                     'name': 'SAPA',
-                    'number': row[39],
-                    'issued': row[40].isoformat() if row[40] else None,
+                    'number': data.get('sapa_no'),
+                    'issued': data.get('sapa_date_issued').isoformat() if data.get('sapa_date_issued') else None,
                     'expiry': None
                 })
-            
-            # PACBRMA
-            if row[41] or row[42]:
+
+            if data.get('pacbrma_no') or data.get('pacbrma_date_issued'):
                 permits.append({
                     'name': 'PACBRMA',
-                    'number': row[41],
-                    'issued': row[42].isoformat() if row[42] else None,
+                    'number': data.get('pacbrma_no'),
+                    'issued': data.get('pacbrma_date_issued').isoformat() if data.get('pacbrma_date_issued') else None,
                     'expiry': None
                 })
-            
-            # ECC
-            if row[43] or row[44]:
+
+            if data.get('ecc_no') or data.get('ecc_date_issued'):
                 permits.append({
                     'name': 'Environmental Compliance Certificate (ECC)',
-                    'number': row[43],
-                    'issued': row[44].isoformat() if row[44] else None,
+                    'number': data.get('ecc_no'),
+                    'issued': data.get('ecc_date_issued').isoformat() if data.get('ecc_date_issued') else None,
                     'expiry': None
                 })
-            
-            # Discharge Permit
-            if row[45] or row[46]:
+
+            if data.get('discharge_permit_no') or data.get('discharge_date_issued'):
                 permits.append({
                     'name': 'Discharge Permit',
-                    'number': row[45],
-                    'issued': row[46].isoformat() if row[46] else None,
+                    'number': data.get('discharge_permit_no'),
+                    'issued': data.get('discharge_date_issued').isoformat() if data.get('discharge_date_issued') else None,
                     'expiry': None
                 })
-            
-            # PTO
-            if row[47] or row[48]:
+
+            if data.get('pto_no') or data.get('pto_date_issued'):
                 permits.append({
                     'name': 'Permit to Operate (PTO)',
-                    'number': row[47],
-                    'issued': row[48].isoformat() if row[48] else None,
+                    'number': data.get('pto_no'),
+                    'issued': data.get('pto_date_issued').isoformat() if data.get('pto_date_issued') else None,
                     'expiry': None
                 })
-            
-            # Build response dictionary
+
+            # Helper to build full URL for signatures stored as relative paths
+            def build_signature_url(sig_path):
+                if not sig_path:
+                    return None
+                # If already absolute URL, return as-is
+                if sig_path.startswith('http://') or sig_path.startswith('https://') or sig_path.startswith('data:'):
+                    return sig_path
+                # Build Supabase public URL
+                bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+                return f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{sig_path}"
+
+            # Prepare response ensuring key names expected by frontend are present
             report_details = {
-                'id': row[0],
-                'establishment_name': row[1],
-                'proponent_name': row[2],
-                'pa_name': row[3],
-                'enumerator_name': row[4],
-                'report_date': row[5].isoformat() if row[5] else None,
-                'informant_name': row[6],
-                'remarks': row[7],
-                'created_at': row[8].isoformat() if row[8] else None,
-                'updated_at': row[9].isoformat() if row[9] else None,
-                'enumerator_signature': row[10],
-                'enumerator_signature_date': row[11].isoformat() if row[11] else None,
-                'informant_signature': row[12],
-                'informant_signature_date': row[13].isoformat() if row[13] else None,
-                'establishment_type': row[16],
-                'establishment_status': row[17],
-                'description': row[18],
-                'lot_status': row[19],
-                'land_classification': row[20],
-                'title_no': row[21],
-                'lot_no': row[22],
-                'lot_owner': row[23],
-                'area_covered': row[24],
-                'pa_zone': row[25],
-                'within_easement': row[26],
-                'tax_declaration_no': row[27],
+                # fields coming from er.* - ensure presence even if None
+                'id': data.get('id'),
+                'establishment_id': data.get('establishment_id'),
+                'establishment_name': data.get('establishment_name'),
+                'proponent_id': data.get('proponent_id') or data.get('proponent_id'),
+                'proponent_name': data.get('proponent_name'),
+                'pa_id': data.get('pa_id'),
+                'pa_name': data.get('pa_name'),
+                'enumerator_id': data.get('enumerator_id'),
+                'enumerator_name': data.get('enumerator_name') or data.get('enumerator_full_name'),
+                'geo_tagged_image_id': data.get('geo_tagged_image_id'),
+                'report_date': data.get('report_date').isoformat() if data.get('report_date') else None,
+                'enumerator_signature_date': data.get('enumerator_signature_date').isoformat() if data.get('enumerator_signature_date') else None,
+                'informant_signature_date': data.get('informant_signature_date').isoformat() if data.get('informant_signature_date') else None,
+                'enumerator_signature': build_signature_url(data.get('enumerator_signature')),
+                'informant_signature': build_signature_url(data.get('informant_signature')),
+                'informant_name': data.get('informant_name'),
+                'remarks': data.get('remarks'),
+                'created_at': data.get('created_at').isoformat() if data.get('created_at') else None,
+                'updated_at': data.get('updated_at').isoformat() if data.get('updated_at') else None,
+
+                # establishment_profile derived fields
+                'establishment_type': data.get('establishment_type'),
+                'establishment_status': data.get('establishment_status'),
+                'description': data.get('description'),
+                'lot_status': data.get('lot_status'),
+                'land_classification': data.get('land_classification'),
+                'title_no': data.get('title_no'),
+                'lot_no': data.get('lot_no'),
+                'lot_owner': data.get('lot_owner'),
+                'area_covered': data.get('area_covered'),
+                'pa_zone': data.get('pa_zone'),
+                'within_easement': data.get('within_easement'),
+                'tax_declaration_no': data.get('tax_declaration_no'),
+
                 'permits': permits,
-                'other_emb': row[49],
-                'geo_image_url': row[50],
-                'latitude': row[51],
-                'longitude': row[52],
-                'location': row[53],
-                'geo_captured_at': row[54].isoformat() if row[54] else None,
-                'attested_by_name': row[55],
-                'attested_by_position': row[56],
-                'attested_by_signature': row[57],
-                'noted_by_name': row[58],
-                'noted_by_position': row[59],
-                'noted_by_signature': row[60]
+                'other_emb': data.get('other_emb'),
+
+                # geo image fields
+                'geo_image_url': data.get('geo_image_url'),
+                'latitude': data.get('geo_latitude') or data.get('latitude'),
+                'longitude': data.get('geo_longitude') or data.get('longitude'),
+                'location': data.get('geo_location') or data.get('location'),
+                'geo_captured_at': data.get('geo_captured_at').isoformat() if data.get('geo_captured_at') else None,
+
+                # attestation fields - build full URLs
+                'attestation_id': data.get('attestation_id'),
+                'attested_by_name': data.get('attested_by_name'),
+                'attested_by_position': data.get('attested_by_position'),
+                'attested_by_signature': build_signature_url(data.get('attested_by_signature')),
+                'noted_by_name': data.get('noted_by_name'),
+                'noted_by_position': data.get('noted_by_position'),
+                'noted_by_signature': build_signature_url(data.get('noted_by_signature'))
             }
-            
+
             return report_details
                 
     except DatabaseError as e:
@@ -1014,6 +1029,76 @@ def get_report_images(report_id):
     return images
 
 
+def save_notation(report_id, noted_by_name, noted_by_position, signature_dataurl, current_user_id=None):
+    """Save notation record and upload signature image to Supabase storage.
+
+    Returns (True, public_url) on success, or (False, error_message) on failure.
+    """
+    try:
+        if not report_id:
+            return False, 'Invalid report id'
+
+        if not signature_dataurl or not signature_dataurl.startswith('data:'):
+            return False, 'Invalid signature data'
+
+        header, encoded = signature_dataurl.split(',', 1)
+        try:
+            data = base64.b64decode(encoded)
+        except Exception as e:
+            return False, f'Decoding error: {e}'
+
+        bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+        filename = f"attestation/report_{report_id}_noted_{int(time.time())}.png"
+
+        try:
+            from_call = supabase.storage.from_(bucket)
+            upload_resp = from_call.upload(filename, data, {"content-type": "image/png"})
+            signature_url_to_store = filename
+        except Exception as e:
+            logger.exception('Supabase upload failed: %s', e)
+            return False, f'Upload failed: {str(e)}'
+
+        with connection.cursor() as cur:
+            cur.execute("SELECT attestation_id FROM enumerators_report WHERE id = %s;", [report_id])
+            row = cur.fetchone()
+            existing_id = row[0] if row else None
+
+            if existing_id:
+                cur.execute(
+                    """
+                    UPDATE attestation_notations
+                    SET noted_by_name = %s,
+                        noted_by_position = %s,
+                        noted_by_signature = %s
+                    WHERE id = %s
+                    RETURNING id;
+                    """,
+                    [noted_by_name, noted_by_position, signature_url_to_store, existing_id]
+                )
+                cur.fetchone()
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO attestation_notations (noted_by_name, noted_by_position, noted_by_signature)
+                    VALUES (%s, %s, %s)
+                    RETURNING id;
+                    """,
+                    [noted_by_name, noted_by_position, signature_url_to_store]
+                )
+                new_id = cur.fetchone()[0]
+                cur.execute("UPDATE enumerators_report SET attestation_id = %s WHERE id = %s;", [new_id, report_id])
+
+        full_url = f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{signature_url_to_store}"
+        return True, full_url
+
+    except DatabaseError as e:
+        logger.exception('DB error saving notation: %s', e)
+        return False, str(e)
+    except Exception as e:
+        logger.exception('Unexpected error saving notation: %s', e)
+        return False, str(e)
+
+
 def save_attestation(report_id, attested_by_name, attested_by_position, signature_dataurl, current_user_id=None):
     """Save attestation record and upload signature image to Supabase storage.
 
@@ -1033,44 +1118,18 @@ def save_attestation(report_id, attested_by_name, attested_by_position, signatur
         except Exception as e:
             return False, f'Decoding error: {e}'
 
-        # Prepare file path
-        bucket = os.getenv('SUPABASE_BUCKET') or 'images'
-        filename = f"signatures/report_{report_id}_attested_{int(time.time())}.png"
+        # Prepare file path in attestation folder
+        bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+        filename = f"attestation/report_{report_id}_attested_{int(time.time())}.png"
 
         # Upload to Supabase storage
         try:
-            # supabase.storage.from_() is preferred; depending on client version use from_ or from
-            storage = getattr(supabase, 'storage')
-            from_call = None
-            try:
-                from_call = storage.from_(bucket)
-            except Exception:
-                from_call = storage.from_bucket(bucket)
-
-            # Upload bytes
-            bio = io.BytesIO(data)
-            # Some clients expect a file-like object, others expect bytes
-            upload_resp = from_call.upload(filename, bio)
+            from_call = supabase.storage.from_(bucket)
+            upload_resp = from_call.upload(filename, data, {"content-type": "image/png"})
+            signature_url_to_store = filename
         except Exception as e:
-            # If upload fails, continue but record signature as data URL fallback
             logger.exception('Supabase upload failed: %s', e)
-            public_url = None
-        else:
-            # Try to get public URL
-            try:
-                pub = from_call.get_public_url(filename)
-                # pub may be dict {'publicURL': '...'} or object
-                public_url = None
-                if isinstance(pub, dict):
-                    public_url = pub.get('publicURL') or pub.get('public_url') or list(pub.values())[0]
-                else:
-                    # try attribute
-                    public_url = getattr(pub, 'publicURL', None) or getattr(pub, 'public_url', None)
-            except Exception:
-                public_url = None
-
-        # Build signature url fallback to data URL if public_url not available
-        signature_url_to_store = public_url or signature_dataurl
+            return False, f'Upload failed: {str(e)}'
 
         # Insert or update attestation_notations and link to enumerators_report
         with connection.cursor() as cur:
@@ -1104,7 +1163,9 @@ def save_attestation(report_id, attested_by_name, attested_by_position, signatur
                 new_id = cur.fetchone()[0]
                 cur.execute("UPDATE enumerators_report SET attestation_id = %s WHERE id = %s;", [new_id, report_id])
 
-        return True, signature_url_to_store
+        # Return full URL for response
+        full_url = f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{signature_url_to_store}"
+        return True, full_url
 
     except DatabaseError as e:
         logger.exception('DB error saving attestation: %s', e)
@@ -1136,3 +1197,155 @@ def get_activity_logs():
     except Exception as e:
         logger.exception("Error fetching activity logs: %s", e)
         return []
+
+
+# =========================
+# PROTECTED AREAS MANAGEMENT
+# =========================
+def add_protected_area(name, file_obj):
+    """Add protected area with file upload to Supabase."""
+    try:
+        # Determine file type
+        file_name = file_obj.name.lower()
+        if file_name.endswith('.kml'):
+            file_type = 'kml'
+        elif file_name.endswith('.zip'):
+            file_type = 'shp'
+        else:
+            return False, 'Invalid file type. Upload KML or ZIP (containing shapefile).'
+
+        # Upload file to Supabase storage
+        bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+        file_path = f"protected-areas/{int(time.time())}_{file_obj.name}"
+        
+        try:
+            file_data = file_obj.read()
+            from_call = supabase.storage.from_(bucket)
+            upload_resp = from_call.upload(file_path, file_data, {"content-type": file_obj.content_type or "application/octet-stream"})
+        except Exception as e:
+            logger.exception('Supabase file upload failed: %s', e)
+            return False, f'File upload failed: {str(e)}'
+
+        # Insert into Supabase table
+        try:
+            result = supabase.table('protected_areas').insert({
+                'name': name,
+                'file_type': file_type,
+                'file_path': file_path
+            }).execute()
+            
+            return True, 'Protected area added successfully'
+        except Exception as e:
+            logger.exception('Supabase insert failed: %s', e)
+            return False, f'Database insert failed: {str(e)}'
+
+    except Exception as e:
+        logger.exception('Error adding protected area: %s', e)
+        return False, str(e)
+
+
+def get_protected_areas():
+    """Fetch all protected areas from Supabase."""
+    try:
+        result = supabase.table('protected_areas').select('*').order('created_at', desc=True).execute()
+        return result.data if result.data else []
+    except Exception as e:
+        logger.exception('Error fetching protected areas: %s', e)
+        return []
+
+
+def delete_protected_area(pa_id):
+    """Delete protected area and its file from Supabase."""
+    try:
+        # Get file path before deleting
+        result = supabase.table('protected_areas').select('file_path').eq('id', pa_id).execute()
+        
+        if result.data and len(result.data) > 0:
+            file_path = result.data[0].get('file_path')
+            
+            # Delete file from storage
+            if file_path:
+                try:
+                    bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+                    supabase.storage.from_(bucket).remove([file_path])
+                except Exception as e:
+                    logger.warning('Failed to delete file from storage: %s', e)
+            
+            # Delete from table
+            supabase.table('protected_areas').delete().eq('id', pa_id).execute()
+            return True, 'Protected area deleted successfully'
+        else:
+            return False, 'Protected area not found'
+            
+    except Exception as e:
+        logger.exception('Error deleting protected area: %s', e)
+        return False, str(e)
+
+
+def export_reports(reports, format_type):
+    """Export reports to PDF, Word, or Excel format"""
+    from io import BytesIO
+    from django.http import HttpResponse
+    
+    if format_type == 'excel':
+        from openpyxl import Workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = 'Reports'
+        ws.append(['Report ID', 'Date', 'Establishment', 'Type', 'Status', 'Protected Area', 'Proponent', 'Enumerator', 'Remarks'])
+        for report in reports:
+            ws.append([report.get('id'), str(report.get('report_date') or ''), report.get('establishment_name') or '', report.get('establishment_type') or '', report.get('establishment_status') or '', report.get('pa_name') or '', report.get('proponent_name') or '', report.get('enumerator_name') or '', report.get('remarks') or ''])
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        response = HttpResponse(buffer.read(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = 'attachment; filename="reports.xlsx"'
+        return response
+    
+    elif format_type == 'word':
+        from docx import Document
+        doc = Document()
+        doc.add_heading('Enumerator Reports', 0)
+        table = doc.add_table(rows=1, cols=9)
+        table.style = 'Light Grid Accent 1'
+        hdr = table.rows[0].cells
+        headers = ['Report ID', 'Date', 'Establishment', 'Type', 'Status', 'Protected Area', 'Proponent', 'Enumerator', 'Remarks']
+        for i, h in enumerate(headers):
+            hdr[i].text = h
+        for report in reports:
+            row = table.add_row().cells
+            row[0].text = str(report.get('id') or '')
+            row[1].text = str(report.get('report_date') or '')
+            row[2].text = report.get('establishment_name') or ''
+            row[3].text = report.get('establishment_type') or ''
+            row[4].text = report.get('establishment_status') or ''
+            row[5].text = report.get('pa_name') or ''
+            row[6].text = report.get('proponent_name') or ''
+            row[7].text = report.get('enumerator_name') or ''
+            row[8].text = report.get('remarks') or ''
+        buffer = BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
+        response = HttpResponse(buffer.read(), content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        response['Content-Disposition'] = 'attachment; filename="reports.docx"'
+        return response
+    
+    else:  # PDF
+        from reportlab.lib.pagesizes import letter, landscape
+        from reportlab.lib import colors
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=landscape(letter))
+        elements = []
+        data = [['ID', 'Date', 'Establishment', 'Type', 'Status', 'PA', 'Proponent', 'Enumerator', 'Remarks']]
+        for report in reports:
+            data.append([str(report.get('id', '')), str(report.get('report_date', '')), (report.get('establishment_name') or '')[:20], (report.get('establishment_type') or '')[:15], (report.get('establishment_status') or '')[:15], (report.get('pa_name') or '')[:15], (report.get('proponent_name') or '')[:20], (report.get('enumerator_name') or '')[:20], (report.get('remarks') or '')[:30]])
+        table = Table(data)
+        table.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.grey), ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke), ('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('FONTSIZE', (0, 0), (-1, 0), 10), ('BOTTOMPADDING', (0, 0), (-1, 0), 12), ('BACKGROUND', (0, 1), (-1, -1), colors.beige), ('GRID', (0, 0), (-1, -1), 1, colors.black)]))
+        elements.append(table)
+        doc.build(elements)
+        buffer.seek(0)
+        response = HttpResponse(buffer.read(), content_type='application/pdf')
+        response['Content-Disposition'] = 'attachment; filename="reports.pdf"'
+        return response

@@ -265,6 +265,27 @@
     color: #999;
     font-style: italic;
   }
+
+  /* Form-like input styling for modal fields */
+  .form-input {
+    width: 100%;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid #ddd;
+    background: #fff;
+    font-size: 0.95rem;
+    color: #000;
+    border-radius: 3px;
+  }
+  .form-textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    background: #fff;
+    font-size: 0.95rem;
+    color: #000;
+    border-radius: 3px;
+  }
   
   /* Permit Row */
   .permit-row {
@@ -344,6 +365,21 @@
     font-weight: 600;
     color: #333;
     margin-bottom: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+  }
+  
+  .attestation-label:hover {
+    color: #1976d2;
+    background: #e3f2fd;
+    transform: translateY(-1px);
+  }
+  
+  .attestation-label:active {
+    transform: translateY(-3px) scale(1.05);
   }
   
   .attestation-box .signature-image {
@@ -804,20 +840,16 @@
       <!-- Attestation -->
       <div class="attestation-section">
         <div class="attestation-box">
-          <div class="attestation-label">Attested by:</div>
+          <div class="attestation-label" id="lblAttest" onclick="openSignaturePad('attested')">Attested by:</div>
           <div class="signature-image" id="modalAttestedBySigContainer">
             <span class="signature-placeholder">No signature available</span>
           </div>
           <div class="attestation-name" id="modalAttestedByName">—</div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <div class="attestation-title" id="modalAttestedByPosition">—<br>(Name & Signature)</div>
-            <!-- Show attest button for CENRO/PENRO roles -->
-            <button id="btnAttest" class="filter-btn" style="padding:.25rem .5rem; font-size:.75rem; background:#1976d2;" onclick="openSignaturePad('attested')">Attest</button>
-          </div>
+          <div class="attestation-title" id="modalAttestedByPosition">—<br>(Name & Signature)</div>
         </div>
         
         <div class="attestation-box">
-          <div class="attestation-label">Noted by:</div>
+          <div class="attestation-label" id="lblNote" onclick="openSignaturePad('noted')">Noted by:</div>
           <div class="signature-image" id="modalNotedBySigContainer">
             <span class="signature-placeholder">No signature available</span>
           </div>
@@ -951,8 +983,10 @@ function populateModal(data) {
   // Signatures
   populateSignature('modalEnumeratorSigContainer', 'modalEnumeratorName', 'modalEnumeratorSigDate',
                      data.enumerator_signature, data.enumerator_name, data.enumerator_signature_date);
+  // For informant, support a "missing signature reason" field if provided by the backend
+  const informantMissingReason = data.informant_signature_reason || data.informant_no_signature_reason || data.informant_signature_reason_text || null;
   populateSignature('modalInformantSigContainer', 'modalInformantName', 'modalInformantSigDate',
-                     data.informant_signature, data.informant_name, data.informant_signature_date);
+                     data.informant_signature, data.informant_name, data.informant_signature_date, informantMissingReason);
   
   // Attestations
   populateAttestation('modalAttestedBySigContainer', 'modalAttestedByName', 'modalAttestedByPosition',
@@ -964,11 +998,39 @@ function populateModal(data) {
 // Helper function to set field value
 function setFieldValue(elementId, value) {
   const element = document.getElementById(elementId);
-  if (value && value !== null && value !== '') {
-    element.textContent = value;
+  if (!element) return;
+
+  // Helper to escape HTML inserted into value attributes
+  function escapeHtml(unsafe) {
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  const hasValue = value !== null && value !== undefined && String(value).trim() !== '';
+
+  // For longer text fields, render a readonly textarea for a form-like appearance
+  if (/(Description|Remarks)/i.test(elementId)) {
+    if (hasValue) {
+      element.innerHTML = `<textarea class="form-textarea" readonly>${escapeHtml(value)}</textarea>`;
+      element.classList.remove('empty');
+    } else {
+      element.innerHTML = `<textarea class="form-textarea" readonly placeholder="—"></textarea>`;
+      element.classList.add('empty');
+    }
+    return;
+  }
+
+  // Default: render readonly input
+  if (hasValue) {
+    element.innerHTML = `<input class="form-input" readonly value="${escapeHtml(value)}">`;
     element.classList.remove('empty');
   } else {
-    element.textContent = '—';
+    element.innerHTML = `<input class="form-input" readonly placeholder="—" value="">`;
     element.classList.add('empty');
   }
 }
@@ -1126,23 +1188,26 @@ function createPermitRow(permit) {
 }
 
 // Function to populate signature
-function populateSignature(containerId, nameId, dateId, signature, name, signatureDate) {
+function populateSignature(containerId, nameId, dateId, signature, name, signatureDate, missingReason) {
   const container = document.getElementById(containerId);
   const nameEl = document.getElementById(nameId);
   const dateEl = document.getElementById(dateId);
-  
+
   if (signature && signature.trim()) {
     container.innerHTML = `<img src="${signature}" alt="Signature">`;
+  } else if (missingReason && missingReason.toString().trim()) {
+    // If backend provided a reason why the informant didn't sign, show it instead
+    container.innerHTML = `<div class="signature-placeholder">${missingReason}</div>`;
   } else {
     container.innerHTML = '<span class="signature-placeholder">No signature available</span>';
   }
-  
+
   if (name) {
     nameEl.textContent = name;
   } else {
     nameEl.textContent = '—';
   }
-  
+
   if (signatureDate) {
     dateEl.textContent = formatDate(signatureDate);
   } else {
@@ -1281,145 +1346,23 @@ document.addEventListener('DOMContentLoaded', function(){
   const modal = document.getElementById('reportModal');
   if(modal){
     const role = (modal.dataset.currentRole || '').toLowerCase();
-    const btn = document.getElementById('btnAttest');
-    if(btn && !['cenro','penro'].includes(role)) btn.style.display = 'none';
+    const lblAttest = document.getElementById('lblAttest');
+    const lblNote = document.getElementById('lblNote');
+    
+    // Only make labels clickable for CENRO/PENRO roles
+    if(!['cenro','penro'].includes(role)) {
+      if(lblAttest) {
+        lblAttest.style.cursor = 'default';
+        lblAttest.onclick = null;
+      }
+      if(lblNote) {
+        lblNote.style.cursor = 'default';
+        lblNote.onclick = null;
+      }
+    }
   }
 });
-
-// ------------------------
-// Signature pad for attestations
-// ------------------------
-
-function getCookie(name) {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(';').shift();
-}
-
-let signatureCanvas = null;
-let signatureCtx = null;
-let signatureDrawing = false;
-
-function openSignaturePad(kind) {
-  // only allow for CENRO or PENRO roles
-  const modal = document.getElementById('reportModal');
-  const role = (modal && modal.dataset && modal.dataset.currentRole || '').toLowerCase();
-  if (!['cenro', 'penro'].includes(role)) {
-    alert('Only CENRO or PENRO users may attest this report.');
-    return;
-  }
-
-  // Create overlay if not present
-  let overlay = document.getElementById('signatureOverlay');
-  if (!overlay) {
-    overlay = document.createElement('div');
-    overlay.id = 'signatureOverlay';
-    overlay.style.position = 'fixed';
-    overlay.style.top = '0';
-    overlay.style.left = '0';
-    overlay.style.width = '100%';
-    overlay.style.height = '100%';
-    overlay.style.background = 'rgba(0,0,0,0.6)';
-    overlay.style.zIndex = '10000';
-    overlay.style.display = 'flex';
-    overlay.style.justifyContent = 'center';
-    overlay.style.alignItems = 'center';
-
-    overlay.innerHTML = `
-      <div style="background:#fff;padding:16px;border-radius:8px;max-width:720px;width:95%">
-        <h3 style="margin:0 0 8px 0">Sign Attestation</h3>
-        <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
-          <label style="font-size:0.85rem;">Name:</label>
-          <input id="sigNameInput" style="flex:1;padding:.4rem" />
-          <label style="font-size:0.85rem;">Position:</label>
-          <input id="sigPositionInput" style="width:180px;padding:.4rem" />
-        </div>
-        <canvas id="sigCanvas" width="680" height="200" style="border:1px solid #ccc;border-radius:4px;width:100%;height:200px;touch-action:none;background:#fff"></canvas>
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
-          <button onclick="clearSignature()" class="clear-btn">Clear</button>
-          <button onclick="closeSignaturePad()" class="clear-btn">Cancel</button>
-          <button onclick="saveSignature()" class="filter-btn">Save Signature</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-
-    signatureCanvas = document.getElementById('sigCanvas');
-    signatureCtx = signatureCanvas.getContext('2d');
-
-    // Mouse events
-    signatureCanvas.addEventListener('mousedown', function(e){ signatureDrawing = true; signatureCtx.beginPath(); signatureCtx.moveTo(e.offsetX * (signatureCanvas.width/signatureCanvas.clientWidth), e.offsetY * (signatureCanvas.height/signatureCanvas.clientHeight)); });
-    signatureCanvas.addEventListener('mousemove', function(e){ if(signatureDrawing){ signatureCtx.lineTo(e.offsetX * (signatureCanvas.width/signatureCanvas.clientWidth), e.offsetY * (signatureCanvas.height/signatureCanvas.clientHeight)); signatureCtx.stroke(); }});
-    document.addEventListener('mouseup', function(){ signatureDrawing = false; });
-
-    // Touch events
-    signatureCanvas.addEventListener('touchstart', function(e){ e.preventDefault(); signatureDrawing = true; const rect = signatureCanvas.getBoundingClientRect(); const t = e.touches[0]; signatureCtx.beginPath(); signatureCtx.moveTo((t.clientX-rect.left)*(signatureCanvas.width/rect.width), (t.clientY-rect.top)*(signatureCanvas.height/rect.height)); });
-    signatureCanvas.addEventListener('touchmove', function(e){ e.preventDefault(); if(!signatureDrawing) return; const rect = signatureCanvas.getBoundingClientRect(); const t = e.touches[0]; signatureCtx.lineTo((t.clientX-rect.left)*(signatureCanvas.width/rect.width), (t.clientY-rect.top)*(signatureCanvas.height/rect.height)); signatureCtx.stroke(); });
-    signatureCanvas.addEventListener('touchend', function(e){ signatureDrawing = false; });
-  }
-
-  // Prefill name from session if available
-  const nameInput = document.getElementById('sigNameInput');
-  const positionInput = document.getElementById('sigPositionInput');
-  nameInput.value = (modal && modal.dataset && modal.dataset.userFullname) || '';
-  positionInput.value = role === 'penro' ? 'PENRO Head' : (role === 'cenro' ? 'CENRO Head' : '');
-
-  overlay.style.display = 'flex';
-}
-
-function clearSignature(){
-  if(signatureCtx){ signatureCtx.clearRect(0,0,signatureCanvas.width, signatureCanvas.height); }
-}
-
-function closeSignaturePad(){
-  const overlay = document.getElementById('signatureOverlay');
-  if(overlay) overlay.style.display = 'none';
-}
-
-function saveSignature(){
-  const overlay = document.getElementById('signatureOverlay');
-  const name = document.getElementById('sigNameInput').value.trim();
-  const position = document.getElementById('sigPositionInput').value.trim();
-  if(!name){ alert('Please enter your name before signing.'); return; }
-
-  // Get data URL
-  const dataUrl = signatureCanvas.toDataURL('image/png');
-
-  // Determine report id from modal
-  const reportIdText = document.getElementById('modalReportId').textContent || '';
-  const reportId = reportIdText.replace('#','').trim();
-  if(!reportId){ alert('Cannot determine report id.'); return; }
-
-  const payload = {
-    attested_by_name: name,
-    attested_by_position: position,
-    signature_dataurl: dataUrl
-  };
-
-  const csrftoken = getCookie('csrftoken');
-
-  fetch(`/cenro/reports/${reportId}/attest/`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': csrftoken || ''
-    },
-    body: JSON.stringify(payload)
-  }).then(r => r.json()).then(resp => {
-    if(resp && resp.success){
-      // Update attested by UI
-      const container = document.getElementById('modalAttestedBySigContainer');
-      container.innerHTML = `<img src="${resp.attested_by_signature_url}" alt="Attested signature">`;
-      document.getElementById('modalAttestedByName').textContent = name || '—';
-      document.getElementById('modalAttestedByPosition').innerHTML = (position || '—') + '<br>(Name & Signature)';
-      closeSignaturePad();
-      alert('Attestation saved.');
-    } else {
-      alert('Failed to save attestation: ' + (resp.error || 'unknown error'));
-    }
-  }).catch(err => {
-    console.error(err);
-    alert('Error saving attestation.');
-  });
-}
 </script>
+
+<!-- Include Signature Modal -->
+{% include 'signatures_modal.html' %}
