@@ -1,63 +1,49 @@
-{% extends "base.html" %}
-{% load static %}
-
-{% block title %}CENRO Activity Logs{% endblock %}
-
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'styles/cenro_excess.css' %}">
-{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% load static %} {% block title %}CENRO Activity
+Logs{% endblock %} {% block extra_css %}
+<link rel="stylesheet" href="{% static 'styles/cenro_excess.css' %}" />
+{% endblock %} {% block content %}
 <section class="act panel">
   <h1 class="act__title">ACTIVITY LOGS</h1>
 
-  <!-- Charts row -->
-  <div class="act__charts">
-    <div class="card">
-      <h2 class="card__title">By Category</h2>
-      <!-- drop in your chart component/canvas here -->
-      <div class="chart ph">Pie Chart Placeholder</div>
-    </div>
+  <div class="table-container">
+    <table
+      class="activity-table"
+      style="width: 100%; border-collapse: collapse; text-align: left"
+    >
+      <thead>
+        <tr style="background: #f0f0f0; border-bottom: 2px solid #ccc">
+          <th style="padding: 10px; border: 1px solid #ccc">TASK</th>
+          <th style="padding: 10px; border: 1px solid #ccc">U-ID</th>
+          <th style="padding: 10px; border: 1px solid #ccc">NAME</th>
+          <th style="padding: 10px; border: 1px solid #ccc">TIMESTAMP</th>
+        </tr>
+      </thead>
 
-    <div class="card">
-      <h2 class="card__title">Product Sales</h2>
-      <!-- drop in your chart component/canvas here -->
-      <div class="chart ph">Bar Chart Placeholder</div>
-    </div>
-  </div>
-
-  <!-- Logs table -->
-  <div class="card">
-    <div class="table-wrap">
-      <table class="table table--logs">
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>Event</th>
-            <th>Subject</th>
-            <th>User</th>
-            <th>Logged At</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for log in logs %}
-          <tr>
-            <td>
-              <span class="badge {% if log.type|lower == 'access' %}badge--access{% else %}badge--resource{% endif %}">
-                {{ log.type }}
-              </span>
-            </td>
-            <td>{{ log.event }}</td>
-            <td>{{ log.subject }}</td>
-            <td>{{ log.user }}</td>
-            <td>{{ log.logged_at }}</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="5" class="empty">No logs yet.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+      <tbody>
+        {% for log in activity_logs %}
+        <tr>
+          <td style="padding: 10px; border: 1px solid #ccc">{{ log.task }}</td>
+          <td style="padding: 10px; border: 1px solid #ccc">
+            {{ log.user_id }}
+          </td>
+          <td style="padding: 10px; border: 1px solid #ccc">{{ log.name }}</td>
+          <td style="padding: 10px; border: 1px solid #ccc">
+            {{ log.timestamp }}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td
+            colspan="4"
+            style="padding: 20px; border: 1px solid #ccc; text-align: center"
+          >
+            No activity logs found.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </section>
+
 {% endblock %}

@@ -1,0 +1,1368 @@
+<!-- enumerators_report_modal.html -->
+<style>
+  /* Modal Overlay */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9998;
+    animation: fadeIn 0.3s ease;
+  }
+  
+  .modal-overlay.active {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+  }
+  
+  /* Modal Container - Form Style */
+  .modal-container {
+    background: #ffffff;
+    border-radius: 8px;
+    width: 100%;
+    max-width: 1000px;
+    max-height: 90vh;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+    animation: slideUp 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    border: 2px solid #333;
+  }
+  
+  /* Close Button */
+  .modal-close-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(0, 0, 0, 0.6);
+    border: none;
+    color: white;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    transition: all 0.3s;
+    z-index: 10;
+  }
+  
+  .modal-close-btn:hover {
+    background: rgba(0, 0, 0, 0.8);
+    transform: rotate(90deg);
+  }
+  
+  /* Form Header */
+  .form-header {
+    background: #f5f5f5;
+    border-bottom: 3px solid #333;
+    padding: 1.5rem 2rem;
+    text-align: center;
+    position: relative;
+  }
+  
+  .form-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin: 0;
+    letter-spacing: 2px;
+    color: #000;
+  }
+  
+  .form-subtitle {
+    font-size: 0.8rem;
+    margin: 0.5rem 0 0 0;
+    text-transform: uppercase;
+    color: #333;
+    font-weight: 600;
+  }
+  
+  .report-id-display {
+    position: absolute;
+    top: 1rem;
+    left: 2rem;
+    background: #000;
+    color: #fff;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+  
+  /* Form Body */
+  .form-body {
+    padding: 2rem;
+    overflow-y: auto;
+    flex: 1;
+    background: #fff;
+  }
+  
+  /* Custom Scrollbar */
+  .form-body::-webkit-scrollbar {
+    width: 10px;
+  }
+  
+  .form-body::-webkit-scrollbar-track {
+    background: #f1f1f1;
+  }
+  
+  .form-body::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 5px;
+  }
+  
+  .form-body::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+  
+  /* Protected Area Header */
+  .pa-header {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #333;
+  }
+  
+  .pa-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 0.25rem;
+  }
+  
+  .pa-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #000;
+    text-decoration: underline;
+  }
+  
+  /* Form Row */
+  .form-row {
+    margin-bottom: 1.25rem;
+    display: flex;
+    gap: 1rem;
+  }
+  
+  .form-row.full {
+    flex-direction: column;
+  }
+  
+  /* Form Field */
+  .form-field {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .form-field.half {
+    flex: 0 0 calc(50% - 0.5rem);
+  }
+  
+  .form-field.third {
+    flex: 0 0 calc(33.333% - 0.67rem);
+  }
+  
+  .field-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0.25rem;
+    display: block;
+  }
+  
+  .field-value {
+    font-size: 0.95rem;
+    color: #000;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #999;
+    min-height: 1.5rem;
+    display: block;
+  }
+  
+  .field-value.empty {
+    color: #999;
+    font-style: italic;
+  }
+  
+  /* Checkbox Group */
+  .checkbox-group {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.5rem;
+  }
+  
+  .checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  
+  .checkbox-box {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #333;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+  
+  .checkbox-box.checked {
+    background: #000;
+    color: #fff;
+  }
+  
+  .checkbox-label {
+    font-size: 0.85rem;
+    color: #000;
+  }
+  
+  /* Section Header */
+  .section-header {
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin: 2rem 0 1rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #333;
+    color: #000;
+  }
+  
+  /* Establishment Type Grid */
+  .establishment-types {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+  
+  /* Description Box */
+  .description-box {
+    border: 1px solid #999;
+    padding: 0.75rem;
+    min-height: 60px;
+    background: #fafafa;
+    color: #000;
+    line-height: 1.5;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+  }
+  
+  .description-box.empty {
+    color: #999;
+    font-style: italic;
+  }
+
+  /* Form-like input styling for modal fields */
+  .form-input {
+    width: 100%;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid #ddd;
+    background: #fff;
+    font-size: 0.95rem;
+    color: #000;
+    border-radius: 3px;
+  }
+  .form-textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    background: #fff;
+    font-size: 0.95rem;
+    color: #000;
+    border-radius: 3px;
+  }
+  
+  /* Permit Row */
+  .permit-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    align-items: end;
+  }
+  
+  /* Signature Section */
+  .signature-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 2px solid #333;
+  }
+  
+  .signature-box {
+    border: 2px solid #999;
+    padding: 1rem;
+    text-align: center;
+    background: #fafafa;
+  }
+  
+  .signature-image {
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.75rem;
+    background: #fff;
+    border: 1px solid #ddd;
+  }
+  
+  .signature-image img {
+    max-width: 100%;
+    max-height: 80px;
+  }
+  
+  .signature-placeholder {
+    color: #999;
+    font-style: italic;
+    font-size: 0.85rem;
+  }
+  
+  .signature-name {
+    font-weight: 600;
+    color: #000;
+    margin-bottom: 0.25rem;
+    text-decoration: underline;
+  }
+  
+  .signature-date {
+    font-size: 0.85rem;
+    color: #555;
+  }
+  
+  /* Attestation Section */
+  .attestation-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #ccc;
+  }
+  
+  .attestation-box {
+    text-align: center;
+  }
+  
+  .attestation-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+  }
+  
+  .attestation-label:hover {
+    color: #1976d2;
+    background: #e3f2fd;
+    transform: translateY(-1px);
+  }
+  
+  .attestation-label:active {
+    transform: translateY(-3px) scale(1.05);
+  }
+  
+  .attestation-box .signature-image {
+    min-height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.75rem;
+    background: #fff;
+    border: 1px solid #ddd;
+  }
+  
+  .attestation-box .signature-image img {
+    max-width: 100%;
+    max-height: 80px;
+  }
+  
+  .attestation-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #000;
+    text-decoration: underline;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  
+  .attestation-title {
+    font-size: 0.8rem;
+    color: #555;
+    margin-top: 0.25rem;
+  }
+  
+  /* Geo-tagged Image Section */
+  .geo-image-section {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    background: #fafafa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+  
+  .geo-image-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 0.75rem;
+    display: block;
+  }
+  
+  .geo-image-container {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  
+  .geo-image-preview {
+    flex: 1;
+    max-width: 400px;
+    border: 2px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #fff;
+  }
+  
+  .geo-image-preview img {
+    width: 100%;
+    height: auto;
+    display: block;
+    cursor: pointer;
+    transition: transform 0.3s ease;
+  }
+  
+  .geo-image-preview img:hover {
+    transform: scale(1.05);
+  }
+  
+  .geo-image-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .geo-image-info-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  
+  .geo-image-info-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #555;
+  }
+  
+  .geo-image-info-value {
+    font-size: 0.9rem;
+    color: #000;
+    padding: 0.3rem;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+  }
+  
+  .geo-image-placeholder {
+    text-align: center;
+    padding: 2rem;
+    color: #999;
+    font-style: italic;
+    background: #f9f9f9;
+    border: 1px dashed #ddd;
+    border-radius: 4px;
+  }
+  
+  /* Animations */
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes slideUp {
+    from {
+      transform: translateY(50px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+  
+  /* Responsive */
+  @media (max-width: 768px) {
+    .modal-container {
+      max-width: 100%;
+      max-height: 100vh;
+      border-radius: 0;
+      border: none;
+    }
+    
+    .form-body {
+      padding: 1.5rem;
+    }
+    
+    .form-row {
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    
+    .form-field.half,
+    .form-field.third {
+      flex: 1;
+    }
+    
+    .establishment-types {
+      grid-template-columns: 1fr;
+    }
+    
+    .permit-row {
+      grid-template-columns: 1fr;
+      gap: 0.5rem;
+    }
+    
+    .signature-section,
+    .attestation-section {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+  }
+  
+  @media print {
+    .modal-close-btn {
+      display: none;
+    }
+  }
+</style>
+
+<!-- Modal HTML -->
+<div class="modal-overlay" id="reportModal" data-supabase-url="{{ supabase_url }}" data-supabase-bucket="{{ supabase_bucket }}" data-current-role="{{ request.session.role|default:'' }}" data-user-fullname="{{ request.session.first_name|default:'' }} {{ request.session.last_name|default:'' }}">
+  <button class="modal-close-btn" onclick="closeReportModal()">&times;</button>
+  
+  <div class="modal-container">
+    <!-- Form Header -->
+    <div class="form-header">
+      <span class="report-id-display" id="modalReportId">#0000</span>
+      <h1 class="form-title">Enumerator's Report</h1>
+      <p class="form-subtitle">Inventory of All Commercial Establishments and Other Facilities/Structures Within the Protected Area</p>
+    </div>
+    
+    <!-- Form Body -->
+    <div class="form-body">
+      
+      <!-- Protected Area -->
+      <div class="pa-header">
+        <div class="pa-label">Name of Protected Area:</div>
+        <div class="pa-value" id="modalProtectedArea">—</div>
+      </div>
+      
+      <!-- Date -->
+      <div class="form-row">
+        <div class="form-field half">
+          <span class="field-label">Date:</span>
+          <span class="field-value" id="modalReportDate">—</span>
+        </div>
+        <div class="form-field half">
+          <span class="field-label">Created At:</span>
+          <span class="field-value" id="modalCreatedAt">—</span>
+        </div>
+      </div>
+      
+      <!-- Proponent/Owner -->
+      <div class="form-row">
+        <div class="form-field">
+          <span class="field-label">Name of Proponent/Owner (Company/Office):</span>
+          <span class="field-value" id="modalProponent">—</span>
+        </div>
+      </div>
+      
+      <!-- Contact Number -->
+      <div class="form-row">
+        <div class="form-field">
+          <span class="field-label">Contact number:</span>
+          <span class="field-value" id="modalContactNumber">—</span>
+        </div>
+      </div>
+      
+      <!-- Location -->
+      <div class="form-row">
+        <div class="form-field">
+          <span class="field-label">Location (Sitio, Brgy, Municipality, Province):</span>
+          <span class="field-value" id="modalLocation">—</span>
+        </div>
+      </div>
+      
+      <!-- Lot Status & Land Classification -->
+      <div class="form-row">
+        <div class="form-field half">
+          <span class="field-label">Lot Status:</span>
+          <div class="checkbox-group" id="modalLotStatusCheckboxes">
+            <div class="checkbox-item">
+              <span class="checkbox-box" id="chkTitled">✓</span>
+              <span class="checkbox-label">Titled</span>
+            </div>
+            <div class="checkbox-item">
+              <span class="checkbox-box" id="chkUntitled">✓</span>
+              <span class="checkbox-label">Untitled</span>
+            </div>
+            <div class="checkbox-item">
+              <span class="checkbox-box" id="chkTaxDeclaration">✓</span>
+              <span class="checkbox-label">Tax Declaration</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-field half">
+          <span class="field-label">Land Classification Status:</span>
+          <div class="checkbox-group" id="modalLandClassCheckboxes">
+            <div class="checkbox-item">
+              <span class="checkbox-box" id="chkTimberland">✓</span>
+              <span class="checkbox-label">Timberland</span>
+            </div>
+            <div class="checkbox-item">
+              <span class="checkbox-box" id="chkAD">✓</span>
+              <span class="checkbox-label">A & D</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Title Details -->
+      <div class="form-row">
+        <div class="form-field">
+          <span class="field-label">If Titled provide details (Title #, Lot # & Lot Owner):</span>
+          <span class="field-value" id="modalTitleDetails">—</span>
+        </div>
+      </div>
+      
+      <!-- Tax Declaration -->
+      <div class="form-row">
+        <div class="form-field">
+          <span class="field-label">Tax Declaration No.:</span>
+          <span class="field-value" id="modalTaxDeclarationNo">—</span>
+        </div>
+      </div>
+      
+      <!-- Coordinates -->
+      <div class="form-row">
+        <div class="form-field half">
+          <span class="field-label">Coordinates - Latitude:</span>
+          <span class="field-value" id="modalLatitude">—</span>
+        </div>
+        <div class="form-field half">
+          <span class="field-label">Longitude:</span>
+          <span class="field-value" id="modalLongitude">—</span>
+        </div>
+      </div>
+      
+      <!-- Geo-tagged Image -->
+      <div class="geo-image-section" id="geoImageSection" style="display: none;">
+        <span class="geo-image-label">📍 Geo-tagged Image</span>
+        <div class="geo-image-container" id="geoImageContainer">
+          <div class="geo-image-preview" id="geoImagePreview">
+            <img src="" alt="Geo-tagged location" id="geoImageImg" onclick="openImageInNewTab()">
+          </div>
+          <!-- Thumbnails for multiple images -->
+          <div id="geoImageThumbnails" style="display:flex;flex-direction:row;gap:8px;margin-top:8px;flex-wrap:wrap"></div>
+          <div class="geo-image-info">
+            <div class="geo-image-info-row">
+              <span class="geo-image-info-label">Location:</span>
+              <span class="geo-image-info-value" id="geoImageLocation">—</span>
+            </div>
+            <div class="geo-image-info-row">
+              <span class="geo-image-info-label">Captured At:</span>
+              <span class="geo-image-info-value" id="geoImageCapturedAt">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Area Covered -->
+      <div class="form-row">
+        <div class="form-field">
+          <span class="field-label">Area covered/occupied (s.q):</span>
+          <span class="field-value" id="modalAreaCovered">—</span>
+        </div>
+      </div>
+      
+      <!-- PA Zone & Easement -->
+      <div class="form-row">
+        <div class="form-field half">
+          <span class="field-label">Location relative to PA Management Zone:</span>
+          <div class="checkbox-group" id="modalPaZoneCheckboxes">
+            <div class="checkbox-item">
+              <span class="checkbox-box" id="chkMUZ">✓</span>
+              <span class="checkbox-label">MUZ</span>
+            </div>
+            <div class="checkbox-item">
+              <span class="checkbox-box" id="chkSPZ">✓</span>
+              <span class="checkbox-label">SPZ</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-field half">
+          <span class="field-label">within Easement (YES/No):</span>
+          <div class="checkbox-group" id="modalEasementCheckboxes">
+            <div class="checkbox-item">
+              <span class="checkbox-box" id="chkEasementYes">✓</span>
+              <span class="checkbox-label">YES</span>
+            </div>
+            <div class="checkbox-item">
+              <span class="checkbox-box" id="chkEasementNo">✓</span>
+              <span class="checkbox-label">NO</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Establishment Name -->
+      <div class="form-row">
+        <div class="form-field">
+          <span class="field-label">Name of Establishment:</span>
+          <span class="field-value" id="modalEstablishmentName">—</span>
+        </div>
+      </div>
+      
+      <!-- Status of Establishment -->
+      <div class="form-row full">
+        <div class="form-field">
+          <span class="field-label">Status of establishment/facility/structure:</span>
+          <div class="checkbox-group" id="modalStatusCheckboxes">
+            <div class="checkbox-item">
+              <span class="checkbox-box" id="chkFunctional">✓</span>
+              <span class="checkbox-label">functional</span>
+            </div>
+            <div class="checkbox-item">
+              <span class="checkbox-box" id="chkUnderRenovation">✓</span>
+              <span class="checkbox-label">under renovation</span>
+            </div>
+            <div class="checkbox-item">
+              <span class="checkbox-box" id="chkUnderConstruction">✓</span>
+              <span class="checkbox-label">under construction</span>
+            </div>
+            <div class="checkbox-item">
+              <span class="checkbox-box" id="chkDilapidated">✓</span>
+              <span class="checkbox-label">dilapidated</span>
+            </div>
+            <div class="checkbox-item">
+              <span class="checkbox-box" id="chkAbandoned">✓</span>
+              <span class="checkbox-label">abandoned</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Type of Establishment -->
+      <div class="form-row full">
+        <div class="form-field">
+          <span class="field-label">Type of commercial establishment and/or facility/structure (check as applicable and as observed):</span>
+          <div class="establishment-types" id="modalEstablishmentTypes">
+            <!-- Will be populated dynamically -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- Description -->
+      <div class="form-row full">
+        <div class="form-field">
+          <span class="field-label">Note: Provide a short description for each establishment/facility/structure as observed</span>
+          <div class="description-box" id="modalDescription">No description provided</div>
+        </div>
+      </div>
+      
+      <!-- Permits Section -->
+      <div class="section-header">Permits/issuances acquired from LGUs and other Government agencies:</div>
+      
+      <div id="modalLGUPermits">
+        <!-- LGU Permits will be populated here -->
+      </div>
+      
+      <div class="section-header" style="margin-top: 1.5rem;">Permits/issuances acquired from DENR and EMB:</div>
+      
+      <div id="modalDENRPermits">
+        <!-- DENR/EMB Permits will be populated here -->
+      </div>
+      
+      <!-- Remarks -->
+      <div class="form-row full" style="margin-top: 1.5rem;">
+        <div class="form-field">
+          <span class="field-label">Remarks:</span>
+          <div class="description-box" id="modalRemarks">No remarks provided</div>
+        </div>
+      </div>
+      
+      <!-- Signatures -->
+      <div class="signature-section">
+        <div class="signature-box">
+          <div class="signature-image" id="modalEnumeratorSigContainer">
+            <span class="signature-placeholder">No signature available</span>
+          </div>
+          <div class="signature-name" id="modalEnumeratorName">—</div>
+          <div class="signature-date">
+            <strong>Date:</strong> <span id="modalEnumeratorSigDate">—</span>
+          </div>
+          <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #555;">Name & Signature of Enumerator</div>
+        </div>
+        
+        <div class="signature-box">
+          <div class="signature-image" id="modalInformantSigContainer">
+            <span class="signature-placeholder">No signature available</span>
+          </div>
+          <div class="signature-name" id="modalInformantName">—</div>
+          <div class="signature-date">
+            <strong>Date:</strong> <span id="modalInformantSigDate">—</span>
+          </div>
+          <div style="margin-top: 0.5rem; font-size: 0.8rem; color: #555;">Name & Signature of Informant/Proponent</div>
+        </div>
+      </div>
+      
+      <!-- Attestation -->
+      <div class="attestation-section">
+        <div class="attestation-box">
+          <div class="attestation-label" id="lblAttest" onclick="openSignaturePad('attested')">Attested by:</div>
+          <div class="signature-image" id="modalAttestedBySigContainer">
+            <span class="signature-placeholder">No signature available</span>
+          </div>
+          <div class="attestation-name" id="modalAttestedByName">—</div>
+          <div class="attestation-title" id="modalAttestedByPosition">—<br>(Name & Signature)</div>
+        </div>
+        
+        <div class="attestation-box">
+          <div class="attestation-label" id="lblNote" onclick="openSignaturePad('noted')">Noted by:</div>
+          <div class="signature-image" id="modalNotedBySigContainer">
+            <span class="signature-placeholder">No signature available</span>
+          </div>
+          <div class="attestation-name" id="modalNotedByName">—</div>
+          <div class="attestation-title" id="modalNotedByPosition">—<br>(Name & Signature)</div>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<script>
+// Function to open the modal with report data
+function openReportModal(reportId) {
+  document.getElementById('reportModal').classList.add('active');
+  document.body.style.overflow = 'hidden';
+  
+  // Fetch report data via AJAX
+  fetch(`/cenro/reports/${reportId}/details/`)
+    .then(response => response.json())
+    .then(data => {
+      populateModal(data);
+    })
+    .catch(error => {
+      console.error('Error fetching report details:', error);
+      alert('Failed to load report details. Please try again.');
+      closeReportModal();
+    });
+}
+
+// Function to populate modal with data
+function populateModal(data) {
+  // Report ID
+  document.getElementById('modalReportId').textContent = '#' + data.id;
+  
+  // Protected Area
+  setFieldValue('modalProtectedArea', data.pa_name);
+  
+  // Dates
+  setFieldValue('modalReportDate', formatDate(data.report_date));
+  setFieldValue('modalCreatedAt', formatDateTime(data.created_at));
+  
+  // Proponent/Owner
+  setFieldValue('modalProponent', data.proponent_name);
+  
+  // Contact Number (if available in data)
+  setFieldValue('modalContactNumber', data.contact_number || 'None');
+  
+  // Location (if available in data)
+  setFieldValue('modalLocation', data.location || 'No location specified');
+  
+  // Lot Status Checkboxes
+  setCheckbox('chkTitled', data.lot_status === 'Titled');
+  setCheckbox('chkUntitled', data.lot_status === 'Untitled');
+  setCheckbox('chkTaxDeclaration', data.lot_status === 'Tax Declaration');
+  
+  // Land Classification Checkboxes
+  setCheckbox('chkTimberland', data.land_classification === 'Timberland');
+  setCheckbox('chkAD', data.land_classification === 'A&D' || data.land_classification === 'A & D');
+  
+  // Title Details
+  let titleDetails = '';
+  if (data.title_no || data.lot_no || data.lot_owner) {
+    const parts = [];
+    if (data.title_no) parts.push(`Title #: ${data.title_no}`);
+    if (data.lot_no) parts.push(`Lot #: ${data.lot_no}`);
+    if (data.lot_owner) parts.push(`Lot Owner: ${data.lot_owner}`);
+    titleDetails = parts.join(', ');
+  }
+  setFieldValue('modalTitleDetails', titleDetails || 'No documents presented');
+  
+  // Tax Declaration
+  setFieldValue('modalTaxDeclarationNo', data.tax_declaration_no);
+  
+  // Coordinates
+  setFieldValue('modalLatitude', data.latitude || '—');
+  setFieldValue('modalLongitude', data.longitude || '—');
+  
+  // Geo-tagged Images (may contain multiple images from Supabase)
+  populateImagesGallery(data.images || []);
+  
+  // Area Covered
+  setFieldValue('modalAreaCovered', data.area_covered);
+  
+  // PA Zone Checkboxes
+  setCheckbox('chkMUZ', data.pa_zone === 'MUZ');
+  setCheckbox('chkSPZ', data.pa_zone === 'SPZ');
+  
+  // Easement Checkboxes
+  setCheckbox('chkEasementYes', data.within_easement === true);
+  setCheckbox('chkEasementNo', data.within_easement === false);
+  
+  // Establishment Name
+  setFieldValue('modalEstablishmentName', data.establishment_name);
+  
+  // Status Checkboxes
+  const status = data.establishment_status ? data.establishment_status.toLowerCase() : '';
+  setCheckbox('chkFunctional', status === 'functional');
+  setCheckbox('chkUnderRenovation', status === 'under renovation');
+  setCheckbox('chkUnderConstruction', status === 'under construction');
+  setCheckbox('chkDilapidated', status === 'dilapidated');
+  setCheckbox('chkAbandoned', status === 'abandoned');
+  
+  // Establishment Types
+  populateEstablishmentTypes(data.establishment_type);
+  
+  // Description
+  const descEl = document.getElementById('modalDescription');
+  if (data.description && data.description.trim()) {
+    descEl.textContent = data.description;
+    descEl.classList.remove('empty');
+  } else {
+    descEl.textContent = 'No description provided';
+    descEl.classList.add('empty');
+  }
+  
+  // Permits
+  populatePermits(data.permits);
+  
+  // Remarks
+  const remarksEl = document.getElementById('modalRemarks');
+  if (data.remarks && data.remarks.trim()) {
+    remarksEl.textContent = data.remarks;
+    remarksEl.classList.remove('empty');
+  } else {
+    remarksEl.textContent = 'No remarks provided';
+    remarksEl.classList.add('empty');
+  }
+  
+  // Signatures
+  populateSignature('modalEnumeratorSigContainer', 'modalEnumeratorName', 'modalEnumeratorSigDate',
+                     data.enumerator_signature, data.enumerator_name, data.enumerator_signature_date);
+  // For informant, support a "missing signature reason" field if provided by the backend
+  const informantMissingReason = data.informant_signature_reason || data.informant_no_signature_reason || data.informant_signature_reason_text || null;
+  populateSignature('modalInformantSigContainer', 'modalInformantName', 'modalInformantSigDate',
+                     data.informant_signature, data.informant_name, data.informant_signature_date, informantMissingReason);
+  
+  // Attestations
+  populateAttestation('modalAttestedBySigContainer', 'modalAttestedByName', 'modalAttestedByPosition',
+                      data.attested_by_signature, data.attested_by_name, data.attested_by_position);
+  populateAttestation('modalNotedBySigContainer', 'modalNotedByName', 'modalNotedByPosition',
+                      data.noted_by_signature, data.noted_by_name, data.noted_by_position);
+}
+
+// Helper function to set field value
+function setFieldValue(elementId, value) {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+
+  // Helper to escape HTML inserted into value attributes
+  function escapeHtml(unsafe) {
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  const hasValue = value !== null && value !== undefined && String(value).trim() !== '';
+
+  // For longer text fields, render a readonly textarea for a form-like appearance
+  if (/(Description|Remarks)/i.test(elementId)) {
+    if (hasValue) {
+      element.innerHTML = `<textarea class="form-textarea" readonly>${escapeHtml(value)}</textarea>`;
+      element.classList.remove('empty');
+    } else {
+      element.innerHTML = `<textarea class="form-textarea" readonly placeholder="—"></textarea>`;
+      element.classList.add('empty');
+    }
+    return;
+  }
+
+  // Default: render readonly input
+  if (hasValue) {
+    element.innerHTML = `<input class="form-input" readonly value="${escapeHtml(value)}">`;
+    element.classList.remove('empty');
+  } else {
+    element.innerHTML = `<input class="form-input" readonly placeholder="—" value="">`;
+    element.classList.add('empty');
+  }
+}
+
+// Helper function to set checkbox
+function setCheckbox(elementId, isChecked) {
+  const checkbox = document.getElementById(elementId);
+  if (isChecked) {
+    checkbox.classList.add('checked');
+    checkbox.textContent = '✓';
+  } else {
+    checkbox.classList.remove('checked');
+    checkbox.textContent = '';
+  }
+}
+
+// Helper function to format date
+function formatDate(dateString) {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+// Helper function to format datetime
+function formatDateTime(dateString) {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  return date.toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+// Function to populate establishment types
+function populateEstablishmentTypes(establishmentType) {
+  const types = [
+    'Hotel',
+    'Water refilling station',
+    'Pharmacy/Drug Store',
+    'Garden/Farm',
+    'Room accommodation/lodging/rest house',
+    'Merchandising/enterprise',
+    'Resort',
+    'Internet shop',
+    'Coffee shop',
+    'Motor shop',
+    'Recreational',
+    'Telecommunication',
+    'Restaurant',
+    'Gasoline Station',
+    'Nature Camp',
+    'Others'
+  ];
+  
+  const container = document.getElementById('modalEstablishmentTypes');
+  container.innerHTML = '';
+  
+  types.forEach(type => {
+    const item = document.createElement('div');
+    item.className = 'checkbox-item';
+    
+    const checkbox = document.createElement('span');
+    checkbox.className = 'checkbox-box';
+    if (establishmentType && establishmentType.toLowerCase() === type.toLowerCase()) {
+      checkbox.classList.add('checked');
+      checkbox.textContent = '✓';
+    }
+    
+    const label = document.createElement('span');
+    label.className = 'checkbox-label';
+    label.textContent = type;
+    
+    item.appendChild(checkbox);
+    item.appendChild(label);
+    container.appendChild(item);
+  });
+}
+
+// Function to populate permits
+function populatePermits(permits) {
+  const lguContainer = document.getElementById('modalLGUPermits');
+  const denrContainer = document.getElementById('modalDENRPermits');
+  
+  lguContainer.innerHTML = '';
+  denrContainer.innerHTML = '';
+  
+  if (!permits || permits.length === 0) {
+    lguContainer.innerHTML = '<p style="color: #999; font-style: italic;">No permit information available</p>';
+    return;
+  }
+  
+  // LGU Permits
+  const lguPermits = permits.filter(p => 
+    p.name.includes("Mayor") || p.name.includes("Business") || p.name.includes("Building")
+  );
+  
+  // DENR/EMB Permits
+  const denrPermits = permits.filter(p => 
+    !p.name.includes("Mayor") && !p.name.includes("Business") && !p.name.includes("Building")
+  );
+  
+  // Populate LGU Permits
+  if (lguPermits.length > 0) {
+    lguPermits.forEach(permit => {
+      lguContainer.appendChild(createPermitRow(permit));
+    });
+  } else {
+    lguContainer.innerHTML = '<p style="color: #999; font-style: italic;">None</p>';
+  }
+  
+  // Populate DENR Permits
+  if (denrPermits.length > 0) {
+    denrPermits.forEach(permit => {
+      denrContainer.appendChild(createPermitRow(permit));
+    });
+  } else {
+    denrContainer.innerHTML = '<p style="color: #999; font-style: italic;">None</p>';
+  }
+}
+
+// Helper to create permit row
+function createPermitRow(permit) {
+  const row = document.createElement('div');
+  row.className = 'permit-row';
+  
+  const nameField = document.createElement('div');
+  nameField.className = 'form-field';
+  nameField.innerHTML = `
+    <span class="field-label">${permit.name}, Permit #:</span>
+    <span class="field-value">${permit.number || 'None'}</span>
+  `;
+  
+  const issuedField = document.createElement('div');
+  issuedField.className = 'form-field';
+  issuedField.innerHTML = `
+    <span class="field-label">Date issued:</span>
+    <span class="field-value">${permit.issued ? formatDate(permit.issued) : '—'}</span>
+  `;
+  
+  const expiryField = document.createElement('div');
+  expiryField.className = 'form-field';
+  expiryField.innerHTML = `
+    <span class="field-label">Expiration date:</span>
+    <span class="field-value">${permit.expiry ? formatDate(permit.expiry) : '—'}</span>
+  `;
+  
+  row.appendChild(nameField);
+  row.appendChild(issuedField);
+  row.appendChild(expiryField);
+  
+  return row;
+}
+
+// Function to populate signature
+function populateSignature(containerId, nameId, dateId, signature, name, signatureDate, missingReason) {
+  const container = document.getElementById(containerId);
+  const nameEl = document.getElementById(nameId);
+  const dateEl = document.getElementById(dateId);
+
+  if (signature && signature.trim()) {
+    container.innerHTML = `<img src="${signature}" alt="Signature">`;
+  } else if (missingReason && missingReason.toString().trim()) {
+    // If backend provided a reason why the informant didn't sign, show it instead
+    container.innerHTML = `<div class="signature-placeholder">${missingReason}</div>`;
+  } else {
+    container.innerHTML = '<span class="signature-placeholder">No signature available</span>';
+  }
+
+  if (name) {
+    nameEl.textContent = name;
+  } else {
+    nameEl.textContent = '—';
+  }
+
+  if (signatureDate) {
+    dateEl.textContent = formatDate(signatureDate);
+  } else {
+    dateEl.textContent = '—';
+  }
+}
+
+// Function to populate attestation (attested by / noted by)
+function populateAttestation(containerId, nameId, positionId, signature, name, position) {
+  const container = document.getElementById(containerId);
+  const nameEl = document.getElementById(nameId);
+  const positionEl = document.getElementById(positionId);
+  
+  if (signature && signature.trim()) {
+    container.innerHTML = `<img src="${signature}" alt="Signature">`;
+  } else {
+    container.innerHTML = '<span class="signature-placeholder">No signature available</span>';
+  }
+  
+  if (name && name.trim()) {
+    nameEl.textContent = name;
+  } else {
+    nameEl.textContent = '—';
+  }
+  
+  if (position && position.trim()) {
+    positionEl.innerHTML = `${position}<br>(Name & Signature)`;
+  } else {
+    positionEl.innerHTML = '—<br>(Name & Signature)';
+  }
+}
+
+// Function to populate geo-tagged image
+// Build public URL for Supabase-stored image or return original if absolute
+function buildPublicUrl(imagePath) {
+  if (!imagePath) return null;
+  // If already absolute URL, return as-is
+  if (/^https?:\/\//i.test(imagePath)) return imagePath;
+
+  const modal = document.getElementById('reportModal');
+  const supabaseUrl = (modal && modal.dataset && modal.dataset.supabaseUrl) || '';
+  const bucket = (modal && modal.dataset && modal.dataset.supabaseBucket) || 'images';
+
+  if (!supabaseUrl) {
+    // Fallback: return the path as-is
+    return imagePath;
+  }
+
+  // Normalize path
+  let p = imagePath;
+  if (p.startsWith('/')) p = p.substring(1);
+
+  return `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${bucket}/${encodeURI(p)}`;
+}
+
+// Populate gallery for one or many images
+function populateImagesGallery(images) {
+  const geoSection = document.getElementById('geoImageSection');
+  const geoImageImg = document.getElementById('geoImageImg');
+  const geoImageLocation = document.getElementById('geoImageLocation');
+  const geoImageCapturedAt = document.getElementById('geoImageCapturedAt');
+  const thumbsContainer = document.getElementById('geoImageThumbnails');
+
+  if (!images || images.length === 0) {
+    geoSection.style.display = 'none';
+    return;
+  }
+
+  // Show section
+  geoSection.style.display = 'block';
+
+  // Use first image as main preview
+  const first = images[0];
+  const firstUrl = buildPublicUrl(first.image || first.image_url || first.image_path || '');
+  geoImageImg.src = firstUrl || '';
+  geoImageImg.alt = 'Geo-tagged location image';
+
+  geoImageLocation.textContent = first.location || first.location_name || 'Location not specified';
+  geoImageCapturedAt.textContent = first.captured_at ? formatDateTime(first.captured_at) : '—';
+
+  // Build thumbnails
+  thumbsContainer.innerHTML = '';
+  images.forEach((imgObj, idx) => {
+    const url = buildPublicUrl(imgObj.image || imgObj.image_url || imgObj.image_path || '');
+    if (!url) return;
+
+    const t = document.createElement('img');
+    t.src = url;
+    t.alt = `Image ${idx + 1}`;
+    t.style.width = '72px';
+    t.style.height = '72px';
+    t.style.objectFit = 'cover';
+    t.style.cursor = 'pointer';
+    t.style.border = imgObj.is_primary ? '2px solid #1976d2' : '1px solid #ddd';
+    t.addEventListener('click', function() {
+      geoImageImg.src = url;
+      geoImageLocation.textContent = imgObj.location || 'Location not specified';
+      geoImageCapturedAt.textContent = imgObj.captured_at ? formatDateTime(imgObj.captured_at) : '—';
+    });
+    thumbsContainer.appendChild(t);
+  });
+}
+
+// Function to open image in new tab
+function openImageInNewTab() {
+  const imageUrl = document.getElementById('geoImageImg').src;
+  if (imageUrl && imageUrl.trim() && imageUrl !== window.location.href) {
+    window.open(imageUrl, '_blank');
+  }
+}
+
+// Function to close the modal
+function closeReportModal() {
+  document.getElementById('reportModal').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+// Close modal when clicking outside
+document.getElementById('reportModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeReportModal();
+  }
+});
+
+// Close modal with Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('reportModal');
+    if (modal.classList.contains('active')) {
+      closeReportModal();
+    }
+  }
+});
+
+document.addEventListener('DOMContentLoaded', function(){
+  const modal = document.getElementById('reportModal');
+  if(modal){
+    const role = (modal.dataset.currentRole || '').toLowerCase();
+    const lblAttest = document.getElementById('lblAttest');
+    const lblNote = document.getElementById('lblNote');
+    
+    // Only make labels clickable for CENRO/PENRO roles
+    if(!['cenro','penro'].includes(role)) {
+      if(lblAttest) {
+        lblAttest.style.cursor = 'default';
+        lblAttest.onclick = null;
+      }
+      if(lblNote) {
+        lblNote.style.cursor = 'default';
+        lblNote.onclick = null;
+      }
+    }
+  }
+});
+</script>
+
+<!-- Include Signature Modal -->
+{% include 'signatures_modal.html' %}

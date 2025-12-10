@@ -10,9 +10,13 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
+from dotenv import load_dotenv
+# from supabase import create_client, Client
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'. 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -74,12 +78,33 @@ WSGI_APPLICATION = 'CAPSTONE_DENRO.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+
+load_dotenv()  
+
+if 'CI' in os.environ:  # Check if running in CI environment
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',  # Use SQLite for CI tests
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.getenv('DB_NAME'),
+            'USER': os.getenv('DB_USER'),
+            'PASSWORD': os.getenv('DB_PASSWORD'),
+
+            'HOST': os.getenv('DB_HOST'),
+            'PORT': os.getenv('DB_PORT'),
+            'OPTIONS': {
+                'client_encoding': 'UTF8',
+                'sslmode': 'require',
+                'options': '-c timezone=Asia/Manila',
+            },
+        }
+    }
 
 
 # Password validation

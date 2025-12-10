@@ -1,23 +1,40 @@
+# urls.py
 from django.urls import path
 from django.shortcuts import redirect
-from . import views
+from . import views, operation
 
 urlpatterns = [
     path('', lambda request: redirect('login')),
+
+    # Auth
     path('login/', views.login_view, name='login'),
-    path('logout/', views.logout_view, name='logout'),
+    path('logout/', operation.logout_user, name='logout'),
 
-    path('sa/dashboard/', views.superadmin_dashboard, name='SA-dashboard'),
+    # Registration - Updated to use the decorated view
+    path('register/', views.create_account_view, name='account-create'),
 
-    path('admin/dashboard/', views.admin_dashboard, name='Admin-dashboard'),
+    # Cascading select APIs
+    path('api/penros/<int:region_id>/', operation.api_penros_by_region, name='api-penros-by-region'),
+    path('api/cenros/<int:penro_id>/', operation.api_cenros_by_penro, name='api-cenros-by-penro'),
 
-    path('penro/dashboard/', views.penro_dashboard, name='PENRO-dashboard'),
+    # Dashboards
+    path('sa/dashboard/',     views.superadmin_dashboard, name='SA-dashboard'),
+    path('admin/dashboard/',  views.admin_dashboard,      name='Admin-dashboard'),
+    path('penro/dashboard/',  views.penro_dashboard,      name='PENRO-dashboard'),
+    path('cenro/dashboard/',  views.cenro_dashboard,      name='CENRO-dashboard'),
 
+    # CENRO subpages 
+    path('cenro/activity-logs/', views.cenro_activitylogs, name='CENRO-activitylogs'),
+    path('cenro/reports/',       views.cenro_reports,      name='CENRO-reports'),
+    path('cenro/reports/export/', views.cenro_export_reports, name='CENRO-reports-export'),
+    path('cenro/reports/<int:report_id>/details/', views.cenro_report_details, name='CENRO-report-details'),
+    path('cenro/reports/<int:report_id>/attest/', views.cenro_attest_report, name='CENRO-report-attest'),
+    path('cenro/reports/<int:report_id>/note/', views.cenro_note_report, name='CENRO-report-note'),
+    path('cenro/templates/',     views.cenro_templates,    name='CENRO-templates'),
+    path("cenro/activity-logs/", views.cenro_activitylogs, name="cenro_activity_logs"),
 
-    path('cenro/dashboard/', views.cenro_dashboard, name='CENRO-dashboard'),
-    path('cenro/activitylogs/', views.cenro_activitylogs, name='CENRO-activitylogs'),
-    path('cenro/reports/', views.cenro_reports, name='CENRO-reports'),
-    path('cenro/templates/', views.cenro_templates, name='CENRO-templates'),
-
+    #Admin Subpages
+    path('admin/protected-areas/', views.protected_areas, name='protected-areas'),
+    path('admin/protected-areas/convert/<path:file_path>/', views.convert_shapefile_to_geojson, name='convert-shapefile'),
 
 ]

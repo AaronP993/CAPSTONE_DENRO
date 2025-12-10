@@ -1,11 +1,149 @@
 {# templates/SUPER_ADMIN/SA_dashboard.html #}
 {% extends "base.html" %}
+{% load static %}
 {% block title %}SUPER ADMIN Dashboard{% endblock %}
+<<<<<<< HEAD
+
+{% block extra_css %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  .chart-container {
+    background: #fff;
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    max-width: 600px;
+    margin: 2rem auto;
+  }
+  .charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin: 2rem 0;
+  }
+  @media (max-width: 768px) {
+    .charts-row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+=======
 {% block content %}
-  <div class="stat-grid">
-    <div class="stat-card"><h3>USERS</h3><div class="value">1000</div></div>
-    <div class="stat-card"><h3>ADMIN</h3><div class="value">800</div></div>
-    <div class="stat-card"><h3>PENRO</h3><div class="value">600</div></div>
-    <div class="stat-card"><h3>CENRO</h3><div class="value">500</div></div>
-  </div>
+  
+>>>>>>> 83f26e9889d6a0a9c08b077053205d4a848a53f7
 {% endblock %}
+
+{% block content %}
+{% include 'includes/topnav/topnav_superadmin.html' with page_title="SUPER ADMIN DASHBOARD" %}
+<div class="dashboard-container" style="padding: 30px;">
+  <div class="charts-row">
+    <div class="chart-container">
+      <h2 style="text-align: center; margin-bottom: 1.5rem; color: #222;">User Distribution by Role</h2>
+      <canvas id="userRoleChart"></canvas>
+    </div>
+    
+    <div class="chart-container">
+      <h2 style="text-align: center; margin-bottom: 1.5rem; color: #222;">Active vs Inactive Users</h2>
+      <canvas id="userStatusChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+const ctx = document.getElementById('userRoleChart');
+new Chart(ctx, {
+  type: 'pie',
+  data: {
+    labels: ['Admin', 'PENRO', 'CENRO', 'Evaluator'],
+    datasets: [{
+      data: [
+        {{ admin_count|default:0 }},
+        {{ penro_count|default:0 }},
+        {{ cenro_count|default:0 }},
+        {{ evaluator_count|default:0 }}
+      ],
+      backgroundColor: [
+        '#4CAF50',
+        '#2196F3',
+        '#FF9800',
+        '#9C27B0'
+      ],
+      borderWidth: 2,
+      borderColor: '#fff'
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          padding: 15,
+          font: {
+            size: 14
+          }
+        }
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            let label = context.label || '';
+            let value = context.parsed || 0;
+            let total = context.dataset.data.reduce((a, b) => a + b, 0);
+            let percentage = ((value / total) * 100).toFixed(1);
+            return label + ': ' + value + ' (' + percentage + '%)';
+          }
+        }
+      }
+    }
+  }
+});
+
+// Active vs Inactive Users Chart
+const statusCtx = document.getElementById('userStatusChart');
+new Chart(statusCtx, {
+  type: 'pie',
+  data: {
+    labels: ['Active Users', 'Inactive Users'],
+    datasets: [{
+      data: [
+        {{ active_users|default:0 }},
+        {{ inactive_users|default:0 }}
+      ],
+      backgroundColor: [
+        '#4CAF50',
+        '#F44336'
+      ],
+      borderWidth: 2,
+      borderColor: '#fff'
+    }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          padding: 15,
+          font: {
+            size: 14
+          }
+        }
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            let label = context.label || '';
+            let value = context.parsed || 0;
+            let total = context.dataset.data.reduce((a, b) => a + b, 0);
+            let percentage = ((value / total) * 100).toFixed(1);
+            return label + ': ' + value + ' (' + percentage + '%)';
+          }
+        }
+      }
+    }
+  }
+});
+</script>
+{% endblock %}
+  

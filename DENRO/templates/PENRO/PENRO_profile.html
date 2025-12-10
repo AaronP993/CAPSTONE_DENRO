@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}PENRO Profile{% endblock %}
+
+{% block extra_css %}
+<style>
+  .profile-container {
+    background: #fff;
+    padding: 2rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  
+  .profile-header {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 2px solid #e0e0e0;
+  }
+  
+  .profile-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4CAF50, #2196F3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+    color: white;
+    font-weight: bold;
+  }
+  
+  .profile-info h2 {
+    margin: 0 0 0.5rem 0;
+    color: #222;
+  }
+  
+  .profile-info p {
+    margin: 0.25rem 0;
+    color: #666;
+  }
+  
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  
+  .info-item {
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #4CAF50;
+  }
+  
+  .info-item label {
+    display: block;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+  }
+  
+  .info-item .value {
+    color: #222;
+    font-size: 1.1rem;
+  }
+  
+  .btn-change-password, .btn-update-profile {
+    padding: 0.75rem 2rem;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.3s;
+    margin: 0 0.5rem;
+  }
+  
+  .btn-change-password {
+    background: #2196F3;
+  }
+  
+  .btn-change-password:hover {
+    background: #1976D2;
+  }
+  
+  .btn-update-profile {
+    background: #4CAF50;
+  }
+  
+  .btn-update-profile:hover {
+    background: #45a049;
+  }
+  
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+  }
+  
+  .modal-content {
+    background-color: #fff;
+    margin: 10% auto;
+    padding: 2rem;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 500px;
+  }
+  
+  .close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  
+  .close:hover {
+    color: #000;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include 'includes/topnav/topnav_penro.html' with page_title="PENRO PROFILE" %}
+<div class="dashboard-container" style="padding: 30px;">
+  <div class="profile-container">
+    <div class="profile-header">
+      <div class="profile-avatar">
+        {{ request.session.first_name.0|upper }}{{ request.session.last_name.0|upper }}
+      </div>
+      <div class="profile-info">
+        <h2>{{ request.session.first_name }} {{ request.session.last_name }}</h2>
+        <p><strong>Role:</strong> {{ request.session.role|title }}</p>
+        <p><strong>Username:</strong> {{ request.session.username }}</p>
+      </div>
+    </div>
+    
+    <div class="info-grid">
+      <div class="info-item">
+        <label>User ID</label>
+        <div class="value">{{ request.session.user_id }}</div>
+      </div>
+      
+      <div class="info-item">
+        <label>Role</label>
+        <div class="value">{{ request.session.role|title }}</div>
+      </div>
+      
+      <div class="info-item">
+        <label>First Name</label>
+        <div class="value">{{ request.session.first_name }}</div>
+      </div>
+      
+      <div class="info-item">
+        <label>Last Name</label>
+        <div class="value">{{ request.session.last_name }}</div>
+      </div>
+      
+      <div class="info-item">
+        <label>Username</label>
+        <div class="value">{{ request.session.username }}</div>
+      </div>
+      
+      <div class="info-item">
+        <label>PENRO Office</label>
+        <div class="value">{{ penro_name|default:"Not Assigned" }}</div>
+      </div>
+    </div>
+    
+    <div style="text-align: center;">
+      <button class="btn-update-profile" onclick="openUpdateProfileModal()">
+        Update Profile
+      </button>
+      <button class="btn-change-password" onclick="openChangePasswordModal()">
+        Change Password
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div id="changePasswordModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="closeChangePasswordModal()">&times;</span>
+    <h2 style="margin-bottom: 1.5rem;">Change Password</h2>
+    <form method="post" action="{% url 'PENRO-profile' %}">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="change_password">
+      
+      <div style="margin-bottom: 1rem;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Current Password:</label>
+        <input type="password" name="current_password" required style="width: 100%; padding: 0.75rem; border: 1px solid #ced4da; border-radius: 6px;">
+      </div>
+      
+      <div style="margin-bottom: 1rem;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">New Password:</label>
+        <input type="password" name="new_password" required minlength="6" style="width: 100%; padding: 0.75rem; border: 1px solid #ced4da; border-radius: 6px;">
+      </div>
+      
+      <div style="margin-bottom: 1.5rem;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Confirm New Password:</label>
+        <input type="password" name="confirm_password" required minlength="6" style="width: 100%; padding: 0.75rem; border: 1px solid #ced4da; border-radius: 6px;">
+      </div>
+      
+      <div style="text-align: center;">
+        <button type="submit" style="padding: 0.75rem 2rem; background: #4CAF50; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer;">
+          Update Password
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Update Profile Modal -->
+<div id="updateProfileModal" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="closeUpdateProfileModal()">&times;</span>
+    <h2 style="margin-bottom: 1.5rem;">Update Profile</h2>
+    <form method="post" action="{% url 'PENRO-profile' %}">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="update_profile">
+      
+      <div style="margin-bottom: 1rem;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">First Name:</label>
+        <input type="text" name="first_name" value="{{ request.session.first_name }}" required style="width: 100%; padding: 0.75rem; border: 1px solid #ced4da; border-radius: 6px;">
+      </div>
+      
+      <div style="margin-bottom: 1rem;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Last Name:</label>
+        <input type="text" name="last_name" value="{{ request.session.last_name }}" required style="width: 100%; padding: 0.75rem; border: 1px solid #ced4da; border-radius: 6px;">
+      </div>
+      
+      <div style="margin-bottom: 1.5rem;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Username:</label>
+        <input type="text" name="username" value="{{ request.session.username }}" required style="width: 100%; padding: 0.75rem; border: 1px solid #ced4da; border-radius: 6px;">
+      </div>
+      
+      <div style="text-align: center;">
+        <button type="submit" style="padding: 0.75rem 2rem; background: #4CAF50; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer;">
+          Save Changes
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openUpdateProfileModal() {
+  document.getElementById('updateProfileModal').style.display = 'block';
+}
+
+function closeUpdateProfileModal() {
+  document.getElementById('updateProfileModal').style.display = 'none';
+}
+
+function openChangePasswordModal() {
+  document.getElementById('changePasswordModal').style.display = 'block';
+}
+
+function closeChangePasswordModal() {
+  document.getElementById('changePasswordModal').style.display = 'none';
+}
+
+window.onclick = function(event) {
+  const passwordModal = document.getElementById('changePasswordModal');
+  const profileModal = document.getElementById('updateProfileModal');
+  if (event.target == passwordModal) {
+    passwordModal.style.display = 'none';
+  }
+  if (event.target == profileModal) {
+    profileModal.style.display = 'none';
+  }
+}
+</script>
+{% endblock %}

@@ -1,7 +1,7 @@
 <!-- CENRO Top Navigation -->
 <header class="topnav">
   <div class="topnav__left">
-    <span class="topnav__brand">CENRO DASHBOARD</span>
+    <span class="topnav__brand">{% if top_nav_title %}{{ top_nav_title }}{% else %}CENRO DASHBOARD{% endif %}</span>
 
     <!-- Search field (wired up in topnav.js with a simple demo handler) -->
     <div class="topnav__search">
@@ -11,9 +11,6 @@
   </div>
 
   <nav class="topnav__right">
-    <a href="{% url 'CENRO-reports' %}?status=approved" class="link">Approved</a>
-    <a href="{% url 'CENRO-reports' %}?status=rejected" class="link">Rejected</a>
-    <a href="{% url 'CENRO-reports' %}?status=pending" class="link">Pending</a>
     <button type="button" class="topnav__bell" title="Notifications">🔔</button>
   </nav>
 </header>
