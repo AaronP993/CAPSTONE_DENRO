@@ -34,6 +34,36 @@ def create_account_view(request):
 def superadmin_dashboard(request):
     return render(request, 'SUPER_ADMIN/SA_dashboard.html')
 
+@login_required
+@role_required(['Super Admin'])
+def sa_region_admin_management(request):
+    return render(request, 'SUPER_ADMIN/region_admin_management.html')
+
+@login_required
+@role_required(['Super Admin'])
+def sa_pending_registration(request):
+    return render(request, 'SUPER_ADMIN/pending_registration.html')
+
+@login_required
+@role_required(['Super Admin'])
+def sa_authentication_logs(request):
+    return render(request, 'SUPER_ADMIN/authentication_logs.html')
+
+@login_required
+@role_required(['Super Admin'])
+def sa_activity_logs(request):
+    return render(request, 'SUPER_ADMIN/activity_logs.html')
+
+@login_required
+@role_required(['Super Admin'])
+def sa_all_users(request):
+    return render(request, 'SUPER_ADMIN/all_users.html')
+
+@login_required
+@role_required(['Super Admin'])
+def sa_profile(request):
+    return render(request, 'SUPER_ADMIN/profile.html')
+
 @login_required  
 @role_required(['Admin'])
 def admin_dashboard(request):
@@ -43,6 +73,26 @@ def admin_dashboard(request):
 @role_required(['PENRO'])
 def penro_dashboard(request):
     return render(request, 'PENRO/PENRO_dashboard.html')
+
+@login_required
+@role_required(['PENRO'])
+def penro_activitylogs(request):
+    return render(request, 'PENRO/PENRO_activitylogs.html')
+
+@login_required
+@role_required(['PENRO'])
+def penro_reports(request):
+    return render(request, 'PENRO/PENRO_reports.html')
+
+@login_required
+@role_required(['PENRO'])
+def penro_usermanagement(request):
+    return render(request, 'PENRO/PENRO_usermanagement.html')
+
+@login_required
+@role_required(['PENRO'])
+def penro_profile(request):
+    return render(request, 'PENRO/PENRO_profile.html')
 
 @login_required
 @role_required(['CENRO'])
