@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}PENRO User Management{% endblock %}
+
+{% block content %}
+{% include 'includes/topnav/topnav_penro.html' with page_title="PENRO USER MANAGEMENT" %}
+<div class="dashboard-container" style="padding: 30px;">
+  <div style="background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+    <h2 style="margin-bottom: 20px; color: #222;">User Management</h2>
+    
+    <div style="margin-bottom: 20px;">
+      <a href="{% url 'account-create' %}" 
+         style="display: inline-block; padding: 10px 20px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px; font-weight: 500;">
+        + Create New User
+      </a>
+    </div>
+    
+    <table style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr style="background: #f2fdf8; border-bottom: 2px solid #ddd;">
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">User ID</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Name</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Role</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Office</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Status</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td colspan="6" style="padding: 40px; text-align: center; color: #666; border: 1px solid #ddd;">
+            User list will be displayed here
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

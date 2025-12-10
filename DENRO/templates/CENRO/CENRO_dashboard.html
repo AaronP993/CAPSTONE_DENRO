@@ -10,130 +10,109 @@
 {% endblock %}
 
 {% block content %}
-  <div class="content-surface">
-    <!-- Stats row -->
-    <div class="stat-grid">
-      <div class="stat-card">
-        <h3>APPROVED</h3>
-        <img src="{% static 'images/approved.png'%}" alt="Approved">
-        <div class="value">800</div>
-      </div>
-      <div class="stat-card">
-        <h3>REJECTED</h3>
-        <img src="{% static 'images/rejected.png'%}" alt="Rejected">
-        <div class="value">600</div>
-      </div>
-      <div class="stat-card">
-        <h3>PENDING</h3>
-        <img src="{% static 'images/pending.png'%}" alt="Pending">
-        <div class="value">2000</div>
-      </div>
-      <div class="stat-card">
-        <h3>EVALUATORS</h3>
-        <img src="{% static 'images/evaluators.png'%}" alt="Evaluators">
-        <div class="value">500</div>
-      </div>
-    </div>
+<div class="dashboard-container" style="padding: 30px;">
 
-    <!-- Charts row -->
-    <div class="chart-grid">
-      <div class="chart-frame">
-        <h4>Performance of Regional Economies</h4>
-        <div class="chart-container">
+  <!-- BOTH CHARTS IN ONE DIVISION -->
+  <div style="display: flex; justify-content: space-between; gap: 40px; width: 100%;">
+
+
+      <!-- LEFT COLUMN — BAR CHART -->
+      <div style="
+          width: 55%;
+          background: #ffffff;
+          padding: 20px;
+          border-radius: 10px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      ">
+          <h2 style="margin-bottom: 10px; color: #222;">Most Enumerated Structures</h2>
           <canvas id="barChart"></canvas>
-        </div>
       </div>
-      <div class="chart-frame">
-        <h4>Most Used Operating Systems</h4>
-        <div class="chart-container">
+
+
+      <!-- RIGHT COLUMN — PIE CHART + LEGEND -->
+      <div style="
+          width: 40%;
+          background: #ffffff;
+          padding: 20px;
+          border-radius: 10px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      ">
+
+          <h2 style="margin-bottom: 10px; color: #222;">Protected Areas in Cebu</h2>
           <canvas id="pieChart"></canvas>
-        </div>
+
+          <!-- Circle Legend -->
+         <!-- LEGEND -->
+            <div style="font-size: 12px; margin-top: 15px; color: #333;">
+                <h3 style="margin-bottom: 8px; color: #222; font-size: 14px;">Legend</h3>
+
+                <div style="display: flex; align-items: center; margin-bottom: 6px;">
+                    <span style="width: 12px; height: 12px; background: #4dc9f6; border-radius: 50%; margin-right: 10px;"></span>
+                    Central Cebu Protected Landscape (CCPL)
+                </div>
+
+                <div style="display: flex; align-items: center; margin-bottom: 6px;">
+                    <span style="width: 12px; height: 12px; background: #f67019; border-radius: 50%; margin-right: 10px;"></span>
+                    Olango Island Wildlife Sanctuary (OIWS)
+                </div>
+
+                <div style="display: flex; align-items: center; margin-bottom: 6px;">
+                    <span style="width: 12px; height: 12px; background: #f53794; border-radius: 50%; margin-right: 10px;"></span>
+                    Moalboal Marine Protected Area (MPA)
+                </div>
+            </div>
+
+
       </div>
-    </div>
-  </div>
-{% endblock %}
 
-{% block extra_js %}
+  </div> <!-- end row div -->
+
+</div>
+
+
 <script>
-  // Bar Chart for Regional Economies Performance
-  const barCtx = document.getElementById('barChart').getContext('2d');
-  const barChart = new Chart(barCtx, {
-      type: 'bar',
-      data: {
-          labels: ['Region 1', 'Region 2', 'Region 3', 'Region 4', 'Region 5', 'Region 6', 'Region 7', 'Region 8', 'Region 9', 'Region 10'],
-          datasets: [{
-              label: 'Growth Rate (%)',
-              data: [7.5, 6.8, 7.8, 5.9, 6.0, 5.7, 6.3, 6.7, 4.2, 5.5],
-              backgroundColor: '#4A90E2',
-              borderColor: '#357ABD',
-              borderWidth: 1,
-              borderRadius: 4
-          }]
-      },
-      options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-              legend: {
-                  display: false
-              }
-          },
-          scales: {
-              y: {
-                  beginAtZero: true,
-                  max: 8,
-                  ticks: {
-                      font: {
-                          size: 10
-                      }
-                  }
-              },
-              x: {
-                  ticks: {
-                      font: {
-                          size: 10
-                      }
-                  }
-              }
-          }
-      }
-  });
+/* ================= BAR CHART ================= */
+const barCtx = document.getElementById('barChart');
+new Chart(barCtx, {
+    type: 'bar',
+    data: {
+        labels: ['Household', 'Business', 'Farm', 'Commercial', 'Industrial'],
+        datasets: [{
+            label: 'Count',
+            data: [120, 90, 70, 40, 30],
+            backgroundColor: '#1abc9c'
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } }
+    }
+});
 
-  // Pie Chart for Operating Systems
-  const pieCtx = document.getElementById('pieChart').getContext('2d');
-  const pieChart = new Chart(pieCtx, {
-      type: 'doughnut',
-      data: {
-          labels: ['Windows 7', 'Mac OS', 'Others', 'iPhone', 'Android OS'],
-          datasets: [{
-              data: [30, 25, 20, 15, 10],
-              backgroundColor: [
-                  '#FF6B35',
-                  '#4A90E2',
-                  '#50C878',
-                  '#FFD700',
-                  '#FF69B4'
-              ],
-              borderWidth: 2,
-              borderColor: '#fff'
-          }]
-      },
-      options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-              legend: {
-                  position: 'right',
-                  labels: {
-                      font: {
-                          size: 11
-                      },
-                      padding: 15,
-                      usePointStyle: true
-                  }
-              }
-          }
-      }
-  });
+
+/* ================= PIE CHART ================= */
+const pieCtx = document.getElementById('pieChart');
+
+new Chart(pieCtx, {
+    type: 'pie',
+    data: {
+        labels: [
+            'Central Cebu Protected Landscape (CCPL)',
+            'Olango Island Wildlife Sanctuary (OIWS)',
+            'Moalboal Marine Protected Area (MPA)'
+        ],
+        datasets: [{
+            data: [180, 75, 40], // Replace with real DB values
+            backgroundColor: ['#4dc9f6', '#f67019', '#f53794']
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: { legend: { display: false } }
+    }
+});
 </script>
+
 {% endblock %}
+
+

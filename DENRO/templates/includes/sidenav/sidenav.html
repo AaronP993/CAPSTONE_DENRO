@@ -1,0 +1,143 @@
+{% load static %}
+<!-- Consolidated Sidenav for all roles -->
+<div class="sidebar">
+  <img src="{% static 'images/Logo.png' %}" alt="DENRO Logo" class="sidebar-logo">
+  <!-- <div class="title">{{ user.get_role_display|default:"USER" }}</div> -->
+  <ul class="sidebar-menu">
+    {% if user.role == 'ADMIN' %}
+      <li class="menu-item">
+        <a href="{% url 'admin_dashboard' %}" class="menu-link {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
+          <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="{% url 'user_profile' %}" class="menu-link {% if request.resolver_match.url_name == 'user_profile' %}active{% endif %}">
+          <i class="fas fa-user"></i> Profile
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="{% url 'admin_activitylogs' %}" class="menu-link {% if request.resolver_match.url_name == 'admin_activitylogs' %}active{% endif %}">
+          <i class="fas fa-list"></i> Activity Logs
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="{% url 'approve_users' %}" class="menu-link {% if request.resolver_match.url_name == 'approve_users' %}active{% endif %}">
+          <i class="fas fa-users"></i> User Accounts
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="{% url 'admin_inventory' %}" class="menu-link {% if request.resolver_match.url_name == 'admin_inventory' %}active{% endif %}">
+          <i class="fas fa-file-alt"></i> Inventory
+        </a>
+      </li>
+    {% elif user.role == 'CENRO' %}
+      <li class="menu-item">
+        <a href="{% url 'CENRO_dashboard' %}" class="menu-link {% if request.resolver_match.url_name == 'CENRO_dashboard' %}active{% endif %}">
+          <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="{% url 'CENRO_reports' %}" class="menu-link {% if request.resolver_match.url_name == 'CENRO_reports' %}active{% endif %}">
+          <i class="fas fa-file-alt"></i> Inventory
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="{% url 'CENRO_activitylogs' %}" class="menu-link {% if request.resolver_match.url_name == 'CENRO_activitylogs' %}active{% endif %}">
+          <i class="fas fa-list"></i> Activity Logs
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="{% url 'CENRO_templates' %}" class="menu-link {% if request.resolver_match.url_name == 'CENRO_templates' %}active{% endif %}">
+          <i class="fas fa-file"></i> Templates
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="{% url 'user_profile' %}" class="menu-link {% if request.resolver_match.url_name == 'user_profile' %}active{% endif %}">
+          <i class="fas fa-user"></i> Profile
+        </a>
+      </li>
+    {% elif user.role == 'EVALUATOR' %}
+      <li class="menu-item">
+        <a href="{% url 'evaluator_dashboard' %}" class="menu-link {% if request.resolver_match.url_name == 'evaluator_dashboard' %}active{% endif %}">
+          <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="{% url 'CENRO_reports' %}" class="menu-link {% if request.resolver_match.url_name == 'CENRO_reports' %}active{% endif %}">
+          <i class="fas fa-file-alt"></i> Reports
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="{% url 'user_profile' %}" class="menu-link {% if request.resolver_match.url_name == 'user_profile' %}active{% endif %}">
+          <i class="fas fa-user"></i> Profile
+        </a>
+      </li>
+    {% elif user.role == 'PENRO' %}
+      <li class="menu-item">
+        <a href="{% url 'PENRO_dashboard' %}" class="menu-link {% if request.resolver_match.url_name == 'PENRO_dashboard' %}active{% endif %}">
+          <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="{% url 'penro_create_account' %}" class="menu-link {% if request.resolver_match.url_name == 'penro_create_account' %}active{% endif %}">
+          <i class="fas fa-user-plus"></i> Account Creation
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="{% url 'penro_inventory' %}" class="menu-link {% if request.resolver_match.url_name == 'penro_inventory' %}active{% endif %}">
+          <i class="fas fa-boxes"></i> Inventory
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="{% url 'penro_activity_logs' %}" class="menu-link {% if request.resolver_match.url_name == 'penro_activity_logs' %}active{% endif %}">
+          <i class="fas fa-list"></i> Activity Logs
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="{% url 'user_profile' %}" class="menu-link {% if request.resolver_match.url_name == 'user_profile' %}active{% endif %}">
+          <i class="fas fa-user"></i> Profile
+        </a>
+      </li>
+    {% elif user.role == 'SUPER_ADMIN' %}
+      <li class="menu-item">
+        <a href="{% url 'SA-dashboard' %}" class="menu-link {% if request.resolver_match.url_name == 'SA-dashboard' %}active{% endif %}">
+          <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="#" class="menu-link {% if request.resolver_match.url_name == 'SA-activitylogs' %}active{% endif %}">
+          <i class="fas fa-list"></i> Activity Logs
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="#" class="menu-link {% if request.resolver_match.url_name == 'SA-useraccounts' %}active{% endif %}">
+          <i class="fas fa-users"></i> User Accounts
+        </a>
+      </li>
+      <li class="menu-item">
+        <a href="#" class="menu-link {% if request.resolver_match.url_name == 'SA-reports' %}active{% endif %}">
+          <i class="fas fa-file-alt"></i> Reports
+        </a>
+      </li>
+    {% endif %}
+    <li class="menu-item">
+      <a href="{% url 'logout' %}" class="menu-link">
+        <i class="fas fa-sign-out-alt"></i> Logout
+      </a>
+    </li>
+  </ul>
+</div>
+
+<script>
+function toggleSubmenu(id) {
+  var submenu = document.getElementById(id);
+  var arrow = event.target.querySelector('.arrow') || event.target.parentElement.querySelector('.arrow');
+  if (submenu.style.display === 'block') {
+    submenu.style.display = 'none';
+    arrow.innerHTML = '▶';
+  } else {
+    submenu.style.display = 'block';
+    arrow.innerHTML = '▼';
+  }
+}
+</script>

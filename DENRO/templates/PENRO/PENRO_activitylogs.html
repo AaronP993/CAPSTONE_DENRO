@@ -1,0 +1,62 @@
+<<<<<<< HEAD
+{% extends "base.html" %} {% load static %} {% block title %}CENRO Activity
+Logs{% endblock %} {% block extra_css %}
+<link rel="stylesheet" href="{% static 'styles/penro_excess.css' %}" />
+{% endblock %} {% block content %}
+{% include 'includes/topnav/topnav_penro.html' with page_title="PENRO ACTIVITY LOGS" %}
+=======
+{% extends "base.html" %} {% load static %} {% block title %}PENRO Activity
+Logs{% endblock %} {% block extra_css %}
+<link rel="stylesheet" href="{% static 'styles/penro.css' %}" />
+{% endblock %} {% block content %}
+
+>>>>>>> 83f26e9889d6a0a9c08b077053205d4a848a53f7
+<section class="act panel">
+  <h1 class="act__title">ACTIVITY LOGS</h1>
+
+  <div class="table-container">
+    <table
+      class="activity-table"
+      style="width: 100%; border-collapse: collapse; text-align: left"
+    >
+      <thead>
+        <tr style="background: #f0f0f0; border-bottom: 2px solid #ccc">
+          <th style="padding: 10px; border: 1px solid #ccc">TASK</th>
+          <th style="padding: 10px; border: 1px solid #ccc">U-ID</th>
+          <th style="padding: 10px; border: 1px solid #ccc">NAME</th>
+          <th style="padding: 10px; border: 1px solid #ccc">TIMESTAMP</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for log in activity_logs %}
+        <tr>
+          <td style="padding: 10px; border: 1px solid #ccc">{{ log.task }}</td>
+          <td style="padding: 10px; border: 1px solid #ccc">
+            {{ log.user_id }}
+          </td>
+          <td style="padding: 10px; border: 1px solid #ccc">{{ log.name }}</td>
+          <td style="padding: 10px; border: 1px solid #ccc">
+            {{ log.timestamp }}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td
+            colspan="4"
+            style="padding: 20px; border: 1px solid #ccc; text-align: center"
+          >
+            No activity logs found.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<<<<<<< HEAD
+
+{% endblock %}
+=======
+{% endblock %}
+>>>>>>> 83f26e9889d6a0a9c08b077053205d4a848a53f7
