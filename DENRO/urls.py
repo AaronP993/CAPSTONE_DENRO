@@ -23,9 +23,23 @@ urlpatterns = [
     path('penro/dashboard/',  views.penro_dashboard,      name='PENRO-dashboard'),
     path('cenro/dashboard/',  views.cenro_dashboard,      name='CENRO-dashboard'),
 
+    # Super Admin subpages
+    path('sa/region-admin-management/', views.sa_region_admin_management, name='sa-region-admin-management'),
+    path('sa/pending-registration/', views.sa_pending_registration, name='sa-pending-registration'),
+    path('sa/authentication-logs/', views.sa_authentication_logs, name='sa-authentication-logs'),
+    path('sa/activity-logs/', views.sa_activity_logs, name='sa-activity-logs'),
+    path('sa/all-users/', views.sa_all_users, name='sa-all-users'),
+    path('sa/profile/', views.sa_profile, name='sa-profile'),
+
     # CENRO subpages 
     path('cenro/activity-logs/', views.cenro_activitylogs, name='CENRO-activitylogs'),
     path('cenro/reports/',       views.cenro_reports,      name='CENRO-reports'),
+    
+    # PENRO subpages
+    path('penro/activity-logs/', views.penro_activitylogs, name='PENRO-activitylogs'),
+    path('penro/reports/', views.penro_reports, name='PENRO-reports'),
+    path('penro/user-management/', views.penro_usermanagement, name='PENRO-usermanagement'),
+    path('penro/profile/', views.penro_profile, name='PENRO-profile'),
     path('cenro/reports/export/', views.cenro_export_reports, name='CENRO-reports-export'),
     path('cenro/reports/<int:report_id>/details/', views.cenro_report_details, name='CENRO-report-details'),
     path('cenro/reports/<int:report_id>/attest/', views.cenro_attest_report, name='CENRO-report-attest'),
