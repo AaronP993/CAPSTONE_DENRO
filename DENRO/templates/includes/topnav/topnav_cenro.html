@@ -1,7 +1,7 @@
 <!-- CENRO Top Navigation -->
 <header class="topnav">
   <div class="topnav__left">
-    <span class="topnav__brand">CENRO DASHBOARD</span>
+    <span class="topnav__brand">{% if top_nav_title %}{{ top_nav_title }}{% else %}CENRO DASHBOARD{% endif %}</span>
 
     <!-- Search field (wired up in topnav.js with a simple demo handler) -->
     <div class="topnav__search">

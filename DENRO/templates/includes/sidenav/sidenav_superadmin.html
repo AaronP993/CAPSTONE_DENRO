@@ -1,15 +1,39 @@
-<!-- templates/includes/sidenav/sidenav_superadmin.html -->
 <aside class="sidenav">
   <div class="sidenav__header">
     <div class="avatar">SA</div>
     <div class="title">SUPER ADMIN</div>
   </div>
+
   <ul class="sidenav__menu">
     <li><a href="{% url 'SA-dashboard' %}">Dashboard</a></li>
+<<<<<<< HEAD
     <li><a href="#">Activity Logs</a></li>
     <li><a href="#">User Accounts</a></li>
-    <li><a href="#">Reports</a></li>
+    <li><a href="#">Profile</a></li>
+=======
+
+    <li>
+      <a href="{% url 'sa-region-admin-management' %}"
+        >Region Admin Management</a
+      >
+    </li>
+
+    <li>
+      <a href="{% url 'sa-pending-registration' %}">Pending Registration</a>
+    </li>
+
+    <li>
+      <a href="{% url 'sa-authentication-logs' %}">Authentication Logs</a>
+    </li>
+
+    <li><a href="{% url 'sa-activity-logs' %}">Activity Logs</a></li>
+
+    <li><a href="{% url 'sa-all-users' %}">All Users</a></li>
+
+    <li><a href="{% url 'sa-profile' %}">Profile</a></li>
+>>>>>>> 83f26e9889d6a0a9c08b077053205d4a848a53f7
   </ul>
+
   <div class="sidenav__footer">
     <a href="{% url 'logout' %}">Logout</a>
   </div>

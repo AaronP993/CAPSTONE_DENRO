@@ -1,0 +1,438 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}PENRO Reports{% endblock %}
+
+{% block extra_css %}
+<style>
+  .reports-container {
+    background: #fff;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #cdebe0;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 120px);
+    overflow: hidden;
+  }
+  .reports-header {
+    margin-bottom: 1rem;
+    flex-shrink: 0;
+  }
+  .reports-header h2 {
+    margin: 0 0 0.5rem 0;
+  }
+  .reports-count {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+  }
+  .active-filter-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    background: #e3f2fd;
+    color: #1976d2;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    margin-left: 0.5rem;
+  }
+  
+  /* Single Row Filter Section */
+  .filter-section {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    flex-wrap: nowrap;
+    padding: 0.5rem 0;
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .filter-label {
+    font-weight: 500;
+    color: #555;
+    font-size: 0.75rem;
+  }
+  .date-input {
+    padding: .3rem .4rem;
+    border-radius: 4px;
+    border: 1px solid #cdebe0;
+    background: #fff;
+    font-size: 0.75rem;
+    width: 115px;
+    cursor: pointer;
+  }
+  .date-input::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    padding: 1px;
+  }
+  .type-select, .pa-select, .status-select {
+    padding: .3rem .4rem;
+    border-radius: 4px;
+    border: 1px solid #cdebe0;
+    background: #fff;
+    font-size: 0.75rem;
+    width: 135px;
+    cursor: pointer;
+  }
+  .filter-btn {
+    padding: .3rem .7rem;
+    border: none;
+    border-radius: 4px;
+    background: #4CAF50;
+    color: white;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.3s;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .filter-btn:hover {
+    background: #45a049;
+  }
+  .clear-btn {
+    padding: .3rem .6rem;
+    border: 1px solid #cdebe0;
+    border-radius: 4px;
+    background: #f5f5f5;
+    color: #666;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .clear-btn:hover {
+    background: #e0e0e0;
+  }
+  
+  /* Horizontal scroll for filter section on smaller screens */
+  .filter-section::-webkit-scrollbar {
+    height: 6px;
+  }
+  
+  .filter-section::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+  }
+  
+  .filter-section::-webkit-scrollbar-thumb {
+    background: #cdebe0;
+    border-radius: 3px;
+  }
+  
+  .filter-section::-webkit-scrollbar-thumb:hover {
+    background: #4CAF50;
+  }
+  
+  /* Remove old responsive section - filters stay in one row now */
+  
+  /* Table container with scroll */
+  .table-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    margin-top: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    min-height: 0;
+  }
+  
+  /* Custom scrollbar styling */
+  .table-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .table-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+  
+  .table-container::-webkit-scrollbar-thumb {
+    background: #cdebe0;
+    border-radius: 4px;
+  }
+  
+  .table-container::-webkit-scrollbar-thumb:hover {
+    background: #4CAF50;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  th, td {
+    padding: .6rem;
+    border: 1px solid #ddd;
+    text-align: left;
+  }
+  th {
+    background: #f2fdf8;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  tbody tr {
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  tbody tr:hover {
+    background: #f0f8f5;
+    transform: scale(1.01);
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.1);
+  }
+  .report-id {
+    font-weight: 500;
+    color: #2c5aa0;
+  }
+  .remarks-cell {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .no-data {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #666;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  .no-data-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+{% include 'includes/topnav/topnav_penro.html' with page_title="PENRO REPORTS" %}
+<div class="reports-container">
+  <div class="reports-header">
+    <h2>📋 Enumerator Reports</h2>
+    <p class="reports-count">
+      {% if reports %}
+        Showing {{ reports|length }} report{% if reports|length != 1 %}s{% endif %}
+        {% if from_date or to_date %}
+          <span class="active-filter-badge">
+            {% if from_date and to_date %}
+              {{ from_date|date:"M d, Y" }} - {{ to_date|date:"M d, Y" }}
+            {% elif from_date %}
+              From {{ from_date|date:"M d, Y" }}
+            {% elif to_date %}
+              Until {{ to_date|date:"M d, Y" }}
+            {% endif %}
+          </span>
+        {% endif %}
+        {% if establishment_type %}
+          <span class="active-filter-badge">
+            {{ establishment_type }}
+          </span>
+        {% endif %}
+        {% if pa_id %}
+          <span class="active-filter-badge">
+            {% for pa in protected_areas %}
+              {% if pa.id == pa_id %}{{ pa.name }}{% endif %}
+            {% endfor %}
+          </span>
+        {% endif %}
+        {% if establishment_status %}
+          <span class="active-filter-badge">
+            {{ establishment_status }}
+          </span>
+        {% endif %}
+      {% endif %}
+    </p>
+  </div>
+  
+  <!-- All Filters in One Row -->
+  <div class="filter-section">
+    <div class="filter-group">
+      <label class="filter-label">From:</label>
+      <input type="date" 
+             class="date-input" 
+             id="fromDate" 
+             value="{% if from_date %}{{ from_date|date:'Y-m-d' }}{% endif %}">
+    </div>
+    
+    <div class="filter-group">
+      <label class="filter-label">To:</label>
+      <input type="date" 
+             class="date-input" 
+             id="toDate" 
+             value="{% if to_date %}{{ to_date|date:'Y-m-d' }}{% endif %}">
+    </div>
+    
+    <div class="filter-group">
+      <label class="filter-label">Type:</label>
+      <select class="type-select" id="typeSelect">
+        <option value="">All Types</option>
+        <option value="Hotel" {% if establishment_type == 'Hotel' %}selected{% endif %}>Hotel</option>
+        <option value="Water refilling station" {% if establishment_type == 'Water refilling station' %}selected{% endif %}>Water refilling station</option>
+        <option value="Pharmacy/Drug Store" {% if establishment_type == 'Pharmacy/Drug Store' %}selected{% endif %}>Pharmacy/Drug Store</option>
+        <option value="Garden/Farm" {% if establishment_type == 'Garden/Farm' %}selected{% endif %}>Garden/Farm</option>
+        <option value="Room accommodation/lodging/rest house" {% if establishment_type == 'Room accommodation/lodging/rest house' %}selected{% endif %}>Room accommodation/lodging/rest house</option>
+        <option value="Merchandising/enterprise" {% if establishment_type == 'Merchandising/enterprise' %}selected{% endif %}>Merchandising/enterprise</option>
+        <option value="Resort" {% if establishment_type == 'Resort' %}selected{% endif %}>Resort</option>
+        <option value="Internet shop" {% if establishment_type == 'Internet shop' %}selected{% endif %}>Internet shop</option>
+        <option value="Coffee shop" {% if establishment_type == 'Coffee shop' %}selected{% endif %}>Coffee shop</option>
+        <option value="Motor shop" {% if establishment_type == 'Motor shop' %}selected{% endif %}>Motor shop</option>
+        <option value="Recreational" {% if establishment_type == 'Recreational' %}selected{% endif %}>Recreational</option>
+        <option value="Telecommunication" {% if establishment_type == 'Telecommunication' %}selected{% endif %}>Telecommunication</option>
+        <option value="Restaurant" {% if establishment_type == 'Restaurant' %}selected{% endif %}>Restaurant</option>
+        <option value="Gasoline Station" {% if establishment_type == 'Gasoline Station' %}selected{% endif %}>Gasoline Station</option>
+        <option value="Nature Camp" {% if establishment_type == 'Nature Camp' %}selected{% endif %}>Nature Camp</option>
+        <option value="Others" {% if establishment_type == 'Others' %}selected{% endif %}>Others</option>
+      </select>
+    </div>
+    
+    <div class="filter-group">
+      <label class="filter-label">Protected Area:</label>
+      <select class="pa-select" id="paSelect">
+        <option value="">All Protected Areas</option>
+        {% for pa in protected_areas %}
+          <option value="{{ pa.id }}" {% if pa_id == pa.id %}selected{% endif %}>
+            {{ pa.name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    
+    <div class="filter-group">
+      <label class="filter-label">Status:</label>
+      <select class="status-select" id="statusSelect">
+        <option value="">All Statuses</option>
+        <option value="Functional" {% if establishment_status == 'Functional' %}selected{% endif %}>Functional</option>
+        <option value="Under construction" {% if establishment_status == 'Under construction' %}selected{% endif %}>Under construction</option>
+        <option value="Dilapidated" {% if establishment_status == 'Dilapidated' %}selected{% endif %}>Dilapidated</option>
+        <option value="Abandoned" {% if establishment_status == 'Abandoned' %}selected{% endif %}>Abandoned</option>
+      </select>
+    </div>
+    
+    <button class="filter-btn" onclick="applyFilters()">Apply</button>
+    <button class="clear-btn" onclick="clearFilters()">Clear</button>
+  </div>
+
+  {% if reports %}
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Report ID</th>
+          <th>Report Date</th>
+          <th>Establishment</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Protected Area</th>
+          <th>Proponent</th>
+          <th>Enumerator</th>
+          <th>Remarks</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for report in reports %}
+        <tr class="report-row" data-report-id="{{ report.id }}">
+          <td class="report-id">#{{ report.id }}</td>
+          <td>{{ report.report_date|date:"M d, Y" }}</td>
+          <td>{{ report.establishment_name|default:"—" }}</td>
+          <td>{{ report.establishment_type|default:"—" }}</td>
+          <td>{{ report.establishment_status|default:"—" }}</td>
+          <td>{{ report.pa_name|default:"—" }}</td>
+          <td>{{ report.proponent_name|default:"—" }}</td>
+          <td>{{ report.enumerator_name|default:"—" }}</td>
+          <td class="remarks-cell" title="{{ report.remarks|default:'' }}">
+            {{ report.remarks|default:"—" }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="no-data">
+    <div class="no-data-icon">📭</div>
+    <p>
+      {% if from_date or to_date or establishment_type or pa_id or establishment_status %}
+        No reports found matching your filters.
+      {% else %}
+        No enumerator reports available yet.
+      {% endif %}
+    </p>
+    {% if from_date or to_date or establishment_type or pa_id or establishment_status %}
+      <button class="clear-btn" onclick="clearFilters()" style="margin-top: 1rem;">Clear all filters</button>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function applyFilters() {
+  var fromDate = document.getElementById('fromDate').value;
+  var toDate = document.getElementById('toDate').value;
+  var type = document.getElementById('typeSelect').value;
+  var paId = document.getElementById('paSelect').value;
+  var status = document.getElementById('statusSelect').value;
+  
+  var url = new URL(window.location);
+  url.search = '';
+  
+  if (fromDate) {
+    url.searchParams.set('from_date', fromDate);
+  }
+  if (toDate) {
+    url.searchParams.set('to_date', toDate);
+  }
+  if (type) {
+    url.searchParams.set('establishment_type', type);
+  }
+  if (paId) {
+    url.searchParams.set('pa_id', paId);
+  }
+  if (status) {
+    url.searchParams.set('establishment_status', status);
+  }
+  
+  window.location = url;
+}
+
+function clearFilters() {
+  window.location = window.location.pathname;
+}
+
+document.getElementById('fromDate').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') applyFilters();
+});
+
+document.getElementById('toDate').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') applyFilters();
+});
+
+// Add click handlers to report rows
+document.addEventListener('DOMContentLoaded', function() {
+  const reportRows = document.querySelectorAll('.report-row');
+  reportRows.forEach(function(row) {
+    row.addEventListener('click', function() {
+      const reportId = this.getAttribute('data-report-id');
+      openReportModal(reportId);
+    });
+  });
+});
+</script>
+
+<!-- Include Report Modal -->
+{% include 'enumerators_report_modal.html' %}
+
+{% endblock %}
