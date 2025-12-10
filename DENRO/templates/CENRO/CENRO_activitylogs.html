@@ -1,48 +1,49 @@
-{% extends "base.html" %}
-{% load static %}
-
-{% block title %}CENRO Activity Logs{% endblock %}
-
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'styles/cenro_excess.css' %}">
-{% endblock %}
-
-{% block content %}
+{% extends "base.html" %} {% load static %} {% block title %}CENRO Activity
+Logs{% endblock %} {% block extra_css %}
+<link rel="stylesheet" href="{% static 'styles/cenro_excess.css' %}" />
+{% endblock %} {% block content %}
 <section class="act panel">
   <h1 class="act__title">ACTIVITY LOGS</h1>
 
-  <!-- 📌 ACTIVITY LOGS TABLE (Added as requested) -->
   <div class="table-container">
-    <table class="activity-table">
+    <table
+      class="activity-table"
+      style="width: 100%; border-collapse: collapse; text-align: left"
+    >
       <thead>
-        <tr>
-          <th>TASK</th>
-          <th>U-ID</th>
-          <th>NAME</th>
-          <th>TIMESTAMP</th>
+        <tr style="background: #f0f0f0; border-bottom: 2px solid #ccc">
+          <th style="padding: 10px; border: 1px solid #ccc">TASK</th>
+          <th style="padding: 10px; border: 1px solid #ccc">U-ID</th>
+          <th style="padding: 10px; border: 1px solid #ccc">NAME</th>
+          <th style="padding: 10px; border: 1px solid #ccc">TIMESTAMP</th>
         </tr>
       </thead>
+
       <tbody>
         {% for log in activity_logs %}
         <tr>
-          <td>{{ log.task }}</td>
-          <td>{{ log.user_id }}</td>
-          <td>{{ log.name }}</td>
-          <td>{{ log.timestamp }}</td>
+          <td style="padding: 10px; border: 1px solid #ccc">{{ log.task }}</td>
+          <td style="padding: 10px; border: 1px solid #ccc">
+            {{ log.user_id }}
+          </td>
+          <td style="padding: 10px; border: 1px solid #ccc">{{ log.name }}</td>
+          <td style="padding: 10px; border: 1px solid #ccc">
+            {{ log.timestamp }}
+          </td>
         </tr>
         {% empty %}
         <tr>
-          <td colspan="4" style="text-align:center; padding:20px;">No activity logs found.</td>
+          <td
+            colspan="4"
+            style="padding: 20px; border: 1px solid #ccc; text-align: center"
+          >
+            No activity logs found.
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  <!-- 📌 END TABLE -->
-
-        </tbody>
-      </table>
-    </div>
-  </div>
 </section>
+
 {% endblock %}

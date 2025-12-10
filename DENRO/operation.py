@@ -970,6 +970,7 @@ def get_report_details(report_id, cenro_id=None):
 
 
 def get_activity_logs():
+<<<<<<< HEAD
     """Fetch activity logs from the database"""
     logs = []
     
@@ -983,3 +984,22 @@ def get_activity_logs():
         logger.error(f"Error fetching activity logs: {e}")
     
     return logs
+=======
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT * FROM get_activity_logs();")
+            logs = cursor.fetchall()
+
+            log_list = []
+            for row in logs:
+                log_list.append({
+                    "task": row[0],
+                    "user_id": row[1],
+                    "name": row[2],
+                    "timestamp": row[3],
+                })
+            return log_list
+    except Exception as e:
+        print("Error fetching logs:", e)
+        return []
+>>>>>>> 83f26e9889d6a0a9c08b077053205d4a848a53f7

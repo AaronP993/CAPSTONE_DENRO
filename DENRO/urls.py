@@ -19,6 +19,12 @@ urlpatterns = [
 
     # Dashboards
     path('sa/dashboard/',     views.superadmin_dashboard, name='SA-dashboard'),
+    path('sa/region-admin-management/', views.region_admin_management_view, name='sa-region-admin-management'),
+    path('sa/pending-registration/', views.pending_registration_view, name='sa-pending-registration'),
+    path('sa/authentication-logs/', views.authentication_logs_view, name='sa-authentication-logs'),
+    path('sa/activity-logs/', views.activity_logs_view, name='sa-activity-logs'),
+    path('sa/all-users/', views.all_users_view, name='sa-all-users'),
+    path('sa/profile/', views.profile_view, name='sa-profile'),
     path('admin/dashboard/',  views.admin_dashboard,      name='Admin-dashboard'),
     path('penro/dashboard/',  views.penro_dashboard,      name='PENRO-dashboard'),
     path('cenro/dashboard/',  views.cenro_dashboard,      name='CENRO-dashboard'),
@@ -32,6 +38,17 @@ urlpatterns = [
 
 
     path("cenro/activity-logs/", views.cenro_activitylogs, name="cenro_activity_logs"),
+    path('penro/activity-logs/', views.penro_activitylogs, name='PENRO-activitylogs'),
+
+
+# SUPER ADMIN ROUTES
+path('sa/dashboard/', views.superadmin_dashboard, name='SA-dashboard'),
+path('sa/region-admin-management/', views.region_admin_management_view, name='sa-region-admin-management'),
+path('sa/pending-registration/', views.pending_registration_view, name='sa-pending-registration'),
+path('sa/authentication-logs/', views.authentication_logs_view, name='sa-authentication-logs'),
+path('sa/activity-logs/', views.activity_logs_view, name='sa-activity-logs'),
+path('sa/all-users/', views.all_users_view, name='sa-all-users'),
+path('sa/profile/', views.profile_view, name='sa-profile'),
 
 
 
