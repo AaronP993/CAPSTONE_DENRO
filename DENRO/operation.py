@@ -458,7 +458,11 @@ def create_account(request):
                     new_id = cur.fetchone()[0]
 
             messages.success(request, f"Account successfully created! User can now log in.")
-            return redirect("account-create")  # Stay on page to create more users
+            # Redirect based on current user's role
+            if current_role == "penro":
+                return redirect("PENRO-usermanagement")
+            else:
+                return redirect("account-create")  # Stay on page to create more users
 
         except DatabaseError as e:
             msg = getattr(e, "pgerror", None) or str(e)
@@ -966,26 +970,16 @@ def get_report_details(report_id, cenro_id=None):
 
 
 def get_activity_logs():
-    conn = connect_db()
-    cursor = conn.cursor()
-
+    """Fetch activity logs from the database"""
+    logs = []
+    
     try:
-        cursor.execute("SELECT * FROM get_activity_logs();")
-        logs = cursor.fetchall()
-
-        log_list = []
-        for row in logs:
-            log_list.append({
-                "task": row[0],
-                "user_id": row[1],
-                "name": row[2],
-                "timestamp": row[3],
-            })
-
-        return log_list
-    except Exception as e:
-        print("Error fetching logs:", e)
-        return []
-    finally:
-        cursor.close()
-        conn.close()
+        with connection.cursor() as cur:
+            cur.execute("SELECT * FROM get_activity_logs();")
+            columns = [desc[0] for desc in cur.description]
+            for row in cur.fetchall():
+                logs.append(dict(zip(columns, row)))
+    except DatabaseError as e:
+        logger.error(f"Error fetching activity logs: {e}")
+    
+    return logs

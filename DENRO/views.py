@@ -20,7 +20,38 @@ def create_account_view(request):
 @login_required
 @role_required(['Super Admin'])
 def superadmin_dashboard(request):
-    return render(request, 'SUPER_ADMIN/SA_dashboard.html')
+    from django.db import connection
+    
+    # Get user counts by role
+    with connection.cursor() as cur:
+        cur.execute("""
+            SELECT 
+                COUNT(*) FILTER (WHERE role = 'Admin') as admin_count,
+                COUNT(*) FILTER (WHERE role = 'PENRO') as penro_count,
+                COUNT(*) FILTER (WHERE role = 'CENRO') as cenro_count,
+                COUNT(*) FILTER (WHERE role = 'Evaluator') as evaluator_count,
+                COUNT(*) as total_users
+            FROM users
+            WHERE role != 'Super Admin';
+        """)
+        row = cur.fetchone()
+    
+    total = row[4] if row else 0
+    # Assume all users are active for now (since is_active column doesn't exist)
+    active = total
+    inactive = 0
+        
+    context = {
+        'admin_count': row[0] if row else 0,
+        'penro_count': row[1] if row else 0,
+        'cenro_count': row[2] if row else 0,
+        'evaluator_count': row[3] if row else 0,
+        'total_users': total,
+        'active_users': active,
+        'inactive_users': inactive,
+    }
+    
+    return render(request, 'SUPER_ADMIN/SA_dashboard.html', context)
 
 @login_required  
 @role_required(['Admin'])
@@ -157,3 +188,58 @@ def cenro_activity_logs(request):
     return render(request, "cenro/activity_logs.html", {
         "activity_logs": logs
     })
+
+
+
+
+
+
+
+
+
+@login_required
+@role_required(['PENRO'])
+def penro_activitylogs(request):
+    logs = get_activity_logs()  # your ORM query
+    return render(request, 'PENRO/PENRO_activitylogs.html', {'logs': logs})
+
+@login_required
+@role_required(['PENRO'])
+def penro_reports(request):
+    penro_id = request.session.get('penro_id')
+    # Get all reports for CENROs under this PENRO
+    reports = []
+    return render(request, 'PENRO/PENRO_reports.html', {'reports': reports})
+
+@login_required
+@role_required(['PENRO'])
+def penro_usermanagement(request):
+    return render(request, 'PENRO/PENRO_usermanagement.html')
+
+@login_required
+@role_required(['PENRO'])
+def penro_profile(request):
+    return render(request, 'PENRO/PENRO_profile.html')
+
+
+@login_required
+@role_required(['PENRO'])
+def penro_profile(request):
+    return render(request, 'PENRO/PENRO_profile.html')
+
+
+
+
+# @login_required
+# @role_required(['PENRO'])
+# def penro_activitylogs(request):
+#     # Replace with real data
+#     logs = get_activity_logs()  # or your ORM query
+#     return render(request, 'PENRO/PENRO_activitylogs.html', {'logs': logs})
+
+# @login_required
+# @role_required(['PENRO'])
+# def penro_reports(request):
+#     # Replace with real data
+#     reports = get_penro_reports()  # your reports function
+#     return render(request, 'PENRO/PENRO_reports.html', {'reports': reports})

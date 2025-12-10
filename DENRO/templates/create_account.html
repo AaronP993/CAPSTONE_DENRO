@@ -15,7 +15,10 @@
     </div>
 
     <div class="card-right">
-      <h1>CREATE ACCOUNT</h1>
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+        <h1 style="margin: 0;">CREATE ACCOUNT</h1>
+        <a href="javascript:history.back()" class="btn-back" style="padding: 0.5rem 1rem; background: #6c757d; color: white; text-decoration: none; border-radius: 4px; font-size: 0.9rem;">← Back</a>
+      </div>
       
       <!-- Show current user info -->
       {% if current_user_role %}

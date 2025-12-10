@@ -33,4 +33,21 @@ urlpatterns = [
 
     path("cenro/activity-logs/", views.cenro_activitylogs, name="cenro_activity_logs"),
 
+
+
+# MY ADDED CODE
+# PENRO pages
+#   path('penro/dashboard/', views.penro_dashboard, name='PENRO-dashboard'),
+  
+    path('penro/activity-logs/', views.penro_activitylogs, name='PENRO-activitylogs'),
+    path('penro/reports/', views.penro_reports, name='PENRO-reports'),
+    path('penro/usermanagement/', views.penro_usermanagement, name='PENRO-usermanagement'),
+    path('penro/profile/', views.penro_profile, name='PENRO-profile'),
+        path('penro/usermanagement/', views.penro_usermanagement, name='PENRO-usermanagement'),
+        path('penro/profile/', views.penro_profile, name='PENRO-profile'),
+
+
 ]
+
+
+
