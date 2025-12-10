@@ -265,6 +265,27 @@
     color: #999;
     font-style: italic;
   }
+
+  /* Form-like input styling for modal fields */
+  .form-input {
+    width: 100%;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid #ddd;
+    background: #fff;
+    font-size: 0.95rem;
+    color: #000;
+    border-radius: 3px;
+  }
+  .form-textarea {
+    width: 100%;
+    min-height: 80px;
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    background: #fff;
+    font-size: 0.95rem;
+    color: #000;
+    border-radius: 3px;
+  }
   
   /* Permit Row */
   .permit-row {
@@ -344,6 +365,21 @@
     font-weight: 600;
     color: #333;
     margin-bottom: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+  }
+  
+  .attestation-label:hover {
+    color: #1976d2;
+    background: #e3f2fd;
+    transform: translateY(-1px);
+  }
+  
+  .attestation-label:active {
+    transform: translateY(-3px) scale(1.05);
   }
   
   .attestation-box .signature-image {
@@ -522,7 +558,7 @@
 </style>
 
 <!-- Modal HTML -->
-<div class="modal-overlay" id="reportModal">
+<div class="modal-overlay" id="reportModal" data-supabase-url="{{ supabase_url }}" data-supabase-bucket="{{ supabase_bucket }}" data-current-role="{{ request.session.role|default:'' }}" data-user-fullname="{{ request.session.first_name|default:'' }} {{ request.session.last_name|default:'' }}">
   <button class="modal-close-btn" onclick="closeReportModal()">&times;</button>
   
   <div class="modal-container">
@@ -647,6 +683,8 @@
           <div class="geo-image-preview" id="geoImagePreview">
             <img src="" alt="Geo-tagged location" id="geoImageImg" onclick="openImageInNewTab()">
           </div>
+          <!-- Thumbnails for multiple images -->
+          <div id="geoImageThumbnails" style="display:flex;flex-direction:row;gap:8px;margin-top:8px;flex-wrap:wrap"></div>
           <div class="geo-image-info">
             <div class="geo-image-info-row">
               <span class="geo-image-info-label">Location:</span>
@@ -802,7 +840,7 @@
       <!-- Attestation -->
       <div class="attestation-section">
         <div class="attestation-box">
-          <div class="attestation-label">Attested by:</div>
+          <div class="attestation-label" id="lblAttest" onclick="openSignaturePad('attested')">Attested by:</div>
           <div class="signature-image" id="modalAttestedBySigContainer">
             <span class="signature-placeholder">No signature available</span>
           </div>
@@ -811,7 +849,7 @@
         </div>
         
         <div class="attestation-box">
-          <div class="attestation-label">Noted by:</div>
+          <div class="attestation-label" id="lblNote" onclick="openSignaturePad('noted')">Noted by:</div>
           <div class="signature-image" id="modalNotedBySigContainer">
             <span class="signature-placeholder">No signature available</span>
           </div>
@@ -891,8 +929,8 @@ function populateModal(data) {
   setFieldValue('modalLatitude', data.latitude || '—');
   setFieldValue('modalLongitude', data.longitude || '—');
   
-  // Geo-tagged Image
-  populateGeoImage(data.geo_image_url, data.location, data.geo_captured_at);
+  // Geo-tagged Images (may contain multiple images from Supabase)
+  populateImagesGallery(data.images || []);
   
   // Area Covered
   setFieldValue('modalAreaCovered', data.area_covered);
@@ -945,8 +983,10 @@ function populateModal(data) {
   // Signatures
   populateSignature('modalEnumeratorSigContainer', 'modalEnumeratorName', 'modalEnumeratorSigDate',
                      data.enumerator_signature, data.enumerator_name, data.enumerator_signature_date);
+  // For informant, support a "missing signature reason" field if provided by the backend
+  const informantMissingReason = data.informant_signature_reason || data.informant_no_signature_reason || data.informant_signature_reason_text || null;
   populateSignature('modalInformantSigContainer', 'modalInformantName', 'modalInformantSigDate',
-                     data.informant_signature, data.informant_name, data.informant_signature_date);
+                     data.informant_signature, data.informant_name, data.informant_signature_date, informantMissingReason);
   
   // Attestations
   populateAttestation('modalAttestedBySigContainer', 'modalAttestedByName', 'modalAttestedByPosition',
@@ -958,11 +998,39 @@ function populateModal(data) {
 // Helper function to set field value
 function setFieldValue(elementId, value) {
   const element = document.getElementById(elementId);
-  if (value && value !== null && value !== '') {
-    element.textContent = value;
+  if (!element) return;
+
+  // Helper to escape HTML inserted into value attributes
+  function escapeHtml(unsafe) {
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  const hasValue = value !== null && value !== undefined && String(value).trim() !== '';
+
+  // For longer text fields, render a readonly textarea for a form-like appearance
+  if (/(Description|Remarks)/i.test(elementId)) {
+    if (hasValue) {
+      element.innerHTML = `<textarea class="form-textarea" readonly>${escapeHtml(value)}</textarea>`;
+      element.classList.remove('empty');
+    } else {
+      element.innerHTML = `<textarea class="form-textarea" readonly placeholder="—"></textarea>`;
+      element.classList.add('empty');
+    }
+    return;
+  }
+
+  // Default: render readonly input
+  if (hasValue) {
+    element.innerHTML = `<input class="form-input" readonly value="${escapeHtml(value)}">`;
     element.classList.remove('empty');
   } else {
-    element.textContent = '—';
+    element.innerHTML = `<input class="form-input" readonly placeholder="—" value="">`;
     element.classList.add('empty');
   }
 }
@@ -1120,23 +1188,26 @@ function createPermitRow(permit) {
 }
 
 // Function to populate signature
-function populateSignature(containerId, nameId, dateId, signature, name, signatureDate) {
+function populateSignature(containerId, nameId, dateId, signature, name, signatureDate, missingReason) {
   const container = document.getElementById(containerId);
   const nameEl = document.getElementById(nameId);
   const dateEl = document.getElementById(dateId);
-  
+
   if (signature && signature.trim()) {
     container.innerHTML = `<img src="${signature}" alt="Signature">`;
+  } else if (missingReason && missingReason.toString().trim()) {
+    // If backend provided a reason why the informant didn't sign, show it instead
+    container.innerHTML = `<div class="signature-placeholder">${missingReason}</div>`;
   } else {
     container.innerHTML = '<span class="signature-placeholder">No signature available</span>';
   }
-  
+
   if (name) {
     nameEl.textContent = name;
   } else {
     nameEl.textContent = '—';
   }
-  
+
   if (signatureDate) {
     dateEl.textContent = formatDate(signatureDate);
   } else {
@@ -1170,37 +1241,74 @@ function populateAttestation(containerId, nameId, positionId, signature, name, p
 }
 
 // Function to populate geo-tagged image
-function populateGeoImage(imageUrl, location, capturedAt) {
+// Build public URL for Supabase-stored image or return original if absolute
+function buildPublicUrl(imagePath) {
+  if (!imagePath) return null;
+  // If already absolute URL, return as-is
+  if (/^https?:\/\//i.test(imagePath)) return imagePath;
+
+  const modal = document.getElementById('reportModal');
+  const supabaseUrl = (modal && modal.dataset && modal.dataset.supabaseUrl) || '';
+  const bucket = (modal && modal.dataset && modal.dataset.supabaseBucket) || 'images';
+
+  if (!supabaseUrl) {
+    // Fallback: return the path as-is
+    return imagePath;
+  }
+
+  // Normalize path
+  let p = imagePath;
+  if (p.startsWith('/')) p = p.substring(1);
+
+  return `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${bucket}/${encodeURI(p)}`;
+}
+
+// Populate gallery for one or many images
+function populateImagesGallery(images) {
   const geoSection = document.getElementById('geoImageSection');
   const geoImageImg = document.getElementById('geoImageImg');
   const geoImageLocation = document.getElementById('geoImageLocation');
   const geoImageCapturedAt = document.getElementById('geoImageCapturedAt');
-  
-  if (imageUrl && imageUrl.trim()) {
-    // Show the section
-    geoSection.style.display = 'block';
-    
-    // Set the image
-    geoImageImg.src = imageUrl;
-    geoImageImg.alt = 'Geo-tagged location image';
-    
-    // Set location
-    if (location && location.trim()) {
-      geoImageLocation.textContent = location;
-    } else {
-      geoImageLocation.textContent = 'Location not specified';
-    }
-    
-    // Set captured date
-    if (capturedAt) {
-      geoImageCapturedAt.textContent = formatDateTime(capturedAt);
-    } else {
-      geoImageCapturedAt.textContent = '—';
-    }
-  } else {
-    // Hide the section if no image
+  const thumbsContainer = document.getElementById('geoImageThumbnails');
+
+  if (!images || images.length === 0) {
     geoSection.style.display = 'none';
+    return;
   }
+
+  // Show section
+  geoSection.style.display = 'block';
+
+  // Use first image as main preview
+  const first = images[0];
+  const firstUrl = buildPublicUrl(first.image || first.image_url || first.image_path || '');
+  geoImageImg.src = firstUrl || '';
+  geoImageImg.alt = 'Geo-tagged location image';
+
+  geoImageLocation.textContent = first.location || first.location_name || 'Location not specified';
+  geoImageCapturedAt.textContent = first.captured_at ? formatDateTime(first.captured_at) : '—';
+
+  // Build thumbnails
+  thumbsContainer.innerHTML = '';
+  images.forEach((imgObj, idx) => {
+    const url = buildPublicUrl(imgObj.image || imgObj.image_url || imgObj.image_path || '');
+    if (!url) return;
+
+    const t = document.createElement('img');
+    t.src = url;
+    t.alt = `Image ${idx + 1}`;
+    t.style.width = '72px';
+    t.style.height = '72px';
+    t.style.objectFit = 'cover';
+    t.style.cursor = 'pointer';
+    t.style.border = imgObj.is_primary ? '2px solid #1976d2' : '1px solid #ddd';
+    t.addEventListener('click', function() {
+      geoImageImg.src = url;
+      geoImageLocation.textContent = imgObj.location || 'Location not specified';
+      geoImageCapturedAt.textContent = imgObj.captured_at ? formatDateTime(imgObj.captured_at) : '—';
+    });
+    thumbsContainer.appendChild(t);
+  });
 }
 
 // Function to open image in new tab
@@ -1233,4 +1341,28 @@ document.addEventListener('keydown', function(e) {
     }
   }
 });
+
+document.addEventListener('DOMContentLoaded', function(){
+  const modal = document.getElementById('reportModal');
+  if(modal){
+    const role = (modal.dataset.currentRole || '').toLowerCase();
+    const lblAttest = document.getElementById('lblAttest');
+    const lblNote = document.getElementById('lblNote');
+    
+    // Only make labels clickable for CENRO/PENRO roles
+    if(!['cenro','penro'].includes(role)) {
+      if(lblAttest) {
+        lblAttest.style.cursor = 'default';
+        lblAttest.onclick = null;
+      }
+      if(lblNote) {
+        lblNote.style.cursor = 'default';
+        lblNote.onclick = null;
+      }
+    }
+  }
+});
 </script>
+
+<!-- Include Signature Modal -->
+{% include 'signatures_modal.html' %}

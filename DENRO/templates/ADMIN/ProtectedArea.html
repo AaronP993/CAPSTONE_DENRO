@@ -1,0 +1,527 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Protected Areas{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  .pa-container {
+    background: #fff;
+    padding: 2rem;
+    border-radius: 8px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  .pa-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e0e0e0;
+  }
+  
+  .pa-header h1 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 1.8rem;
+  }
+  
+  .btn-add {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.3s;
+  }
+  
+  .btn-add:hover {
+    background: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  }
+  
+  .modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  .modal.active {
+    display: flex;
+  }
+  
+  .modal-content {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 500px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+  
+  .modal-header h2 {
+    margin: 0;
+    color: #2c3e50;
+  }
+  
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #666;
+  }
+  
+  .close-btn:hover {
+    color: #000;
+  }
+  
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+  
+  .form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .form-group input[type="text"] {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+  }
+  
+  .form-group input[type="text"]:focus {
+    outline: none;
+    border-color: #4CAF50;
+  }
+  
+  .file-upload {
+    border: 2px dashed #ddd;
+    border-radius: 4px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  
+  .file-upload:hover {
+    border-color: #4CAF50;
+    background: #f9f9f9;
+  }
+  
+  .file-upload input[type="file"] {
+    display: none;
+  }
+  
+  .file-upload-label {
+    cursor: pointer;
+    color: #666;
+  }
+  
+  .file-name {
+    margin-top: 0.5rem;
+    color: #4CAF50;
+    font-weight: 600;
+  }
+  
+  .btn-submit {
+    width: 100%;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.3s;
+  }
+  
+  .btn-submit:hover {
+    background: #45a049;
+  }
+  
+  .pa-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+  }
+  
+  .pa-table th,
+  .pa-table td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0;
+  }
+  
+  .pa-table th {
+    background: #f5f5f5;
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .pa-table tr:hover {
+    background: #f9f9f9;
+  }
+  
+  .badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  
+  .badge-kml {
+    background: #e3f2fd;
+    color: #1976d2;
+  }
+  
+  .badge-shp {
+    background: #f3e5f5;
+    color: #7b1fa2;
+  }
+  
+  .btn-view {
+    background: #2196F3;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    margin-right: 0.5rem;
+  }
+  
+  .btn-view:hover {
+    background: #1976D2;
+  }
+  
+  .btn-delete {
+    background: #f44336;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  
+  .btn-delete:hover {
+    background: #d32f2f;
+  }
+  
+  .map-modal-content {
+    background: white;
+    padding: 0;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 1000px;
+    height: 80vh;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .map-modal-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .map-modal-header h2 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 1.3rem;
+  }
+  
+  #map {
+    flex: 1;
+    width: 100%;
+    border-radius: 0 0 8px 8px;
+  }
+  
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #999;
+  }
+  
+  .empty-state-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pa-container">
+  <div class="pa-header">
+    <h1>📍 Protected Areas</h1>
+    <button class="btn-add" onclick="openModal()">+ Add Protected Area</button>
+  </div>
+  
+  {% if messages %}
+    {% for message in messages %}
+      <div class="alert alert-{{ message.tags }}" style="padding:1rem;margin-bottom:1rem;border-radius:4px;background:#d4edda;color:#155724;">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+  
+  <table class="pa-table">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Protected Area Name</th>
+        <th>File Type</th>
+        <th>Date Added</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if protected_areas %}
+        {% for pa in protected_areas %}
+        <tr>
+          <td>#{{ pa.id }}</td>
+          <td>{{ pa.name }}</td>
+          <td>
+            {% if pa.file_type == 'kml' %}
+              <span class="badge badge-kml">KML</span>
+            {% elif pa.file_type == 'shp' %}
+              <span class="badge badge-shp">Shapefile</span>
+            {% else %}
+              <span class="badge">—</span>
+            {% endif %}
+          </td>
+          <td>{{ pa.created_at|date:"M d, Y" }}</td>
+          <td>
+            <button class="btn-view" onclick="viewPA('{{ pa.file_path }}', '{{ pa.name }}', '{{ pa.file_type }}')">View</button>
+            <button class="btn-delete" onclick="deletePA({{ pa.id }})">Delete</button>
+          </td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td colspan="5">
+            <div class="empty-state">
+              <div class="empty-state-icon">🗺️</div>
+              <p>No protected areas added yet.</p>
+              <p style="font-size:0.9rem;color:#666;">Click "Add Protected Area" to get started.</p>
+            </div>
+          </td>
+        </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Add Protected Area Modal -->
+<div class="modal" id="paModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Add Protected Area</h2>
+      <button class="close-btn" onclick="closeModal()">&times;</button>
+    </div>
+    
+    <form method="POST" enctype="multipart/form-data" id="paForm">
+      {% csrf_token %}
+      
+      <div class="form-group">
+        <label for="paName">Protected Area Name *</label>
+        <input type="text" id="paName" name="name" required placeholder="Enter protected area name">
+      </div>
+      
+      <div class="form-group">
+        <label>Upload KML or Shapefile *</label>
+        <div class="file-upload" onclick="document.getElementById('fileInput').click()">
+          <input type="file" id="fileInput" name="file" accept=".kml,.zip" required onchange="displayFileName()">
+          <div class="file-upload-label">
+            <div style="font-size:2rem;margin-bottom:0.5rem;">📁</div>
+            <div>Click to upload KML or ZIP</div>
+            <div style="font-size:0.85rem;color:#999;margin-top:0.5rem;">KML file or ZIP containing shapefile</div>
+          </div>
+          <div class="file-name" id="fileName"></div>
+        </div>
+      </div>
+      
+      <button type="submit" class="btn-submit">Add Protected Area</button>
+    </form>
+  </div>
+</div>
+
+<!-- Map View Modal -->
+<div class="modal" id="mapModal">
+  <div class="map-modal-content">
+    <div class="map-modal-header">
+      <h2 id="mapTitle">Protected Area Map</h2>
+      <button class="close-btn" onclick="closeMapModal()">&times;</button>
+    </div>
+    <div id="map"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
+<script>
+/* eslint-disable */
+function openModal() {
+  document.getElementById('paModal').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('paModal').classList.remove('active');
+  document.body.style.overflow = '';
+  document.getElementById('paForm').reset();
+  document.getElementById('fileName').textContent = '';
+}
+
+function displayFileName() {
+  const input = document.getElementById('fileInput');
+  const fileName = document.getElementById('fileName');
+  if (input.files.length > 0) {
+    fileName.textContent = '✓ ' + input.files[0].name;
+  }
+}
+
+function deletePA(id) {
+  if (confirm('Are you sure you want to delete this protected area?')) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '';
+    
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrfmiddlewaretoken';
+    csrfInput.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    const actionInput = document.createElement('input');
+    actionInput.type = 'hidden';
+    actionInput.name = 'action';
+    actionInput.value = 'delete';
+    
+    const idInput = document.createElement('input');
+    idInput.type = 'hidden';
+    idInput.name = 'pa_id';
+    idInput.value = id;
+    
+    form.appendChild(csrfInput);
+    form.appendChild(actionInput);
+    form.appendChild(idInput);
+    document.body.appendChild(form);
+    form.submit();
+  }
+}
+
+document.getElementById('paModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeModal();
+  }
+});
+
+let map = null;
+const SUPABASE_URL = '{{ supabase_url|default:"" }}';
+const SUPABASE_BUCKET = '{{ supabase_bucket|default:"geo-tagged-photos" }}';
+
+function viewPA(filePath, name, fileType) {
+  document.getElementById('mapModal').classList.add('active');
+  document.getElementById('mapTitle').textContent = name;
+  document.body.style.overflow = 'hidden';
+  
+  // Initialize map if not already done
+  if (!map) {
+    map = L.map('map').setView([10.3157, 123.8854], 10); // Cebu coordinates
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+  }
+  
+  // Clear existing layers
+  map.eachLayer(function(layer) {
+    if (layer instanceof L.TileLayer === false) {
+      map.removeLayer(layer);
+    }
+  });
+  
+  // Build file URL
+  const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${filePath}`;
+  
+  // Load KML or Shapefile
+  if (fileType === 'kml') {
+    fetch(fileUrl)
+      .then(response => response.text())
+      .then(kmlText => {
+        const parser = new DOMParser();
+        const kml = parser.parseFromString(kmlText, 'text/xml');
+        const layer = omnivore.kml.parse(kml);
+        layer.addTo(map);
+        
+        if (layer.getBounds().isValid()) {
+          map.fitBounds(layer.getBounds());
+        }
+      })
+      .catch(err => {
+        console.error('Error loading KML:', err);
+        alert('Failed to load KML file');
+      });
+  } else if (fileType === 'shp') {
+    // Convert shapefile to GeoJSON via backend
+    fetch(`/admin/protected-areas/convert/${filePath}/`)
+      .then(response => response.json())
+      .then(geojson => {
+        const layer = L.geoJSON(geojson);
+        layer.addTo(map);
+        
+        if (layer.getBounds().isValid()) {
+          map.fitBounds(layer.getBounds());
+        }
+      })
+      .catch(err => {
+        console.error('Error loading Shapefile:', err);
+        alert('Failed to load Shapefile');
+      });
+  }
+  
+  // Invalidate size after modal is shown
+  setTimeout(() => map.invalidateSize(), 100);
+}
+
+function closeMapModal() {
+  document.getElementById('mapModal').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+document.getElementById('mapModal').addEventListener('click', function(e) {
+  if (e.target === this) {
+    closeMapModal();
+  }
+});
+</script>
+{% endblock %}
