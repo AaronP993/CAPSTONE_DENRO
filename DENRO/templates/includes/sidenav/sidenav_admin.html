@@ -6,10 +6,10 @@
   </div>
   <ul class="sidenav__menu">
     <li><a href="{% url 'Admin-dashboard' %}">Dashboard</a></li>
-    <li><a href="#">Activity Logs</a></li>
-    <li><a href="#">User Accounts</a></li>
-    <li><a href="#">Reports</a></li>
-    <li><a href="{% url 'protected-areas' %}">Protected Areas</a></li>
+    <li><a href="{% url 'admin-activitylogs' %}">Activity Logs</a></li>
+    <li><a href="{% url 'admin-reports' %}">Reports</a></li>
+    <li><a href="{% url 'admin-usermanagement' %}">User Management</a></li>
+    <li><a href="{% url 'admin-profile' %}">Profile</a></li>
   </ul>
   <div class="sidenav__footer">
     <a href="{% url 'logout' %}">Logout</a>

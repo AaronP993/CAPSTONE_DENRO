@@ -1349,3 +1349,171 @@ def export_reports(reports, format_type):
         response = HttpResponse(buffer.read(), content_type='application/pdf')
         response['Content-Disposition'] = 'attachment; filename="reports.pdf"'
         return response
+
+
+# =========================
+# USER MANAGEMENT FUNCTIONS
+# =========================
+def get_all_users():
+    """Fetch all users from database."""
+    users = []
+    try:
+        with connection.cursor() as cur:
+            cur.execute("""
+                SELECT id, username, first_name, last_name, email, role, 
+                       region_id, penro_id, cenro_id
+                FROM users
+                ORDER BY created_at DESC;
+            """)
+            columns = [desc[0] for desc in cur.description]
+            for row in cur.fetchall():
+                user_dict = dict(zip(columns, row))
+                user_dict['user_id'] = user_dict['id']
+                user_dict['office'] = 'N/A'
+                if user_dict.get('cenro_id'):
+                    user_dict['office'] = 'CENRO'
+                elif user_dict.get('penro_id'):
+                    user_dict['office'] = 'PENRO'
+                elif user_dict.get('region_id'):
+                    user_dict['office'] = 'Region'
+                users.append(user_dict)
+    except DatabaseError as e:
+        logger.error(f"Error fetching users: {e}")
+    return users
+
+
+def update_user_profile(user_id, first_name, last_name, username, email=None, role=None):
+    """Update user profile information."""
+    try:
+        with connection.cursor() as cur:
+            if email and role:
+                # Admin updating user
+                cur.execute("""
+                    UPDATE users
+                    SET first_name = %s, last_name = %s, username = %s, 
+                        email = %s, role = %s
+                    WHERE id = %s;
+                """, [first_name, last_name, username, email, role, user_id])
+            else:
+                # User updating own profile
+                cur.execute("""
+                    UPDATE users
+                    SET first_name = %s, last_name = %s, username = %s
+                    WHERE id = %s;
+                """, [first_name, last_name, username, user_id])
+        return True, "Profile updated successfully"
+    except DatabaseError as e:
+        logger.error(f"Error updating user profile: {e}")
+        return False, str(e)
+
+
+def change_user_password(user_id, current_password, new_password):
+    """Change user password after verifying current password."""
+    try:
+        with connection.cursor() as cur:
+            # Verify current password
+            cur.execute("""
+                SELECT password FROM users WHERE id = %s;
+            """, [user_id])
+            row = cur.fetchone()
+            if not row:
+                return False, "User not found"
+            
+            stored_password = row[0]
+            # Simple comparison - in production, use proper password hashing
+            if stored_password != current_password:
+                return False, "Current password is incorrect"
+            
+            # Update password
+            cur.execute("""
+                UPDATE users SET password = %s WHERE id = %s;
+            """, [new_password, user_id])
+        
+        return True, "Password changed successfully"
+    except DatabaseError as e:
+        logger.error(f"Error changing password: {e}")
+        return False, str(e)
+
+
+def delete_user(user_id):
+    """Delete user from database."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute("DELETE FROM users WHERE id = %s;", [user_id])
+        return True, "User deleted successfully"
+    except DatabaseError as e:
+        logger.error(f"Error deleting user: {e}")
+        return False, str(e)
+
+
+def get_user_phone(user_id):
+    """Get user's phone number."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute("SELECT phone_number FROM users WHERE id = %s;", [user_id])
+            row = cur.fetchone()
+            return row[0] if row else ''
+    except DatabaseError as e:
+        logger.error(f"Error fetching phone number: {e}")
+        return ''
+
+
+def update_user_profile_with_phone(user_id, first_name, last_name, username, phone_number=None):
+    """Update user profile including phone number."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute("""
+                UPDATE users
+                SET first_name = %s, last_name = %s, username = %s, phone_number = %s
+                WHERE id = %s;
+            """, [first_name, last_name, username, phone_number, user_id])
+        return True, "Profile updated successfully"
+    except DatabaseError as e:
+        logger.error(f"Error updating user profile: {e}")
+        return False, str(e)
+
+
+def update_user_profile_with_phone_and_pic(user_id, first_name, last_name, phone_number=None, profile_pic=None):
+    """Update user profile including phone number and profile picture."""
+    try:
+        profile_pic_url = None
+        if profile_pic:
+            # Upload to Supabase
+            bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+            filename = f"profile_pics/{user_id}_{int(time.time())}_{profile_pic.name}"
+            file_data = profile_pic.read()
+            supabase.storage.from_(bucket).upload(filename, file_data, {"content-type": profile_pic.content_type})
+            profile_pic_url = filename
+        
+        with connection.cursor() as cur:
+            if profile_pic_url:
+                cur.execute("""
+                    UPDATE users
+                    SET first_name = %s, last_name = %s, phone_number = %s, profile_pic = %s
+                    WHERE id = %s;
+                """, [first_name, last_name, phone_number, profile_pic_url, user_id])
+            else:
+                cur.execute("""
+                    UPDATE users
+                    SET first_name = %s, last_name = %s, phone_number = %s
+                    WHERE id = %s;
+                """, [first_name, last_name, phone_number, user_id])
+        return True, "Profile updated successfully"
+    except Exception as e:
+        logger.error(f"Error updating user profile: {e}")
+        return False, str(e)
+
+
+def get_user_profile_pic(user_id):
+    """Get user's profile picture URL."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute("SELECT profile_pic FROM users WHERE id = %s;", [user_id])
+            row = cur.fetchone()
+            if row and row[0]:
+                bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+                return f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{row[0]}"
+            return None
+    except DatabaseError as e:
+        logger.error(f"Error fetching profile picture: {e}")
+        return None

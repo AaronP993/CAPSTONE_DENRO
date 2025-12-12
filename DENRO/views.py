@@ -64,10 +64,124 @@ def sa_all_users(request):
 def sa_profile(request):
     return render(request, 'SUPER_ADMIN/profile.html')
 
-@login_required  
+@login_required
 @role_required(['Admin'])
 def admin_dashboard(request):
     return render(request, 'ADMIN/ADMIN_dashboard.html')
+
+@login_required
+@role_required(['Admin'])
+def admin_activitylogs(request):
+    return render(request, 'ADMIN/ADMIN_activitylogs.html')
+
+@login_required
+@role_required(['Admin'])
+def admin_reports(request):
+    # Get filter parameters from query string
+    from_date_str = request.GET.get('from_date', None)
+    to_date_str = request.GET.get('to_date', None)
+    establishment_type = request.GET.get('establishment_type', None)
+    pa_id_str = request.GET.get('pa_id', None)
+    establishment_status = request.GET.get('establishment_status', None)
+
+    # Convert date strings to date objects
+    from_date = None
+    to_date = None
+
+    if from_date_str:
+        try:
+            from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            from_date = None
+
+    if to_date_str:
+        try:
+            to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            to_date = None
+
+    # Convert pa_id to int if present
+    pa_id = None
+    if pa_id_str:
+        try:
+            pa_id = int(pa_id_str)
+        except (ValueError, TypeError):
+            pa_id = None
+
+    # Fetch reports (assuming admin can see all reports, similar to PENRO but without cenro_id filter)
+    reports = get_enumerator_reports(
+        cenro_id=None,  # Admin sees all
+        from_date=from_date,
+        to_date=to_date,
+        establishment_type=establishment_type,
+        pa_id=pa_id,
+        establishment_status=establishment_status
+    )
+
+    # Get list of establishment types and protected areas for dropdowns
+    establishment_types = get_establishment_types_for_cenro(None)  # All types
+    protected_areas = get_protected_areas_for_cenro(None)  # All protected areas
+
+    # Pass reports and filter options to template
+    context = {
+        'reports': reports,
+        'from_date': from_date,
+        'to_date': to_date,
+        'establishment_type': establishment_type,
+        'establishment_types': establishment_types,
+        'pa_id': pa_id,
+        'protected_areas': protected_areas,
+        'establishment_status': establishment_status,
+    }
+
+    return render(request, 'ADMIN/ADMIN_reports.html', context)
+
+@login_required
+@role_required(['Admin'])
+def admin_usermanagement(request):
+    from .operation import get_all_users
+    users = get_all_users()
+    return render(request, 'ADMIN/ADMIN_usermanagement.html', {'users': users})
+
+@login_required
+@role_required(['Admin'])
+def admin_user_update(request):
+    if request.method == 'POST':
+        from .operation import update_user_profile
+        user_id = request.POST.get('user_id')
+        first_name = request.POST.get('first_name')
+        last_name = request.POST.get('last_name')
+        username = request.POST.get('username')
+        email = request.POST.get('email')
+        role = request.POST.get('role')
+        
+        success, message = update_user_profile(user_id, first_name, last_name, username, email, role)
+        if success:
+            messages.success(request, message)
+        else:
+            messages.error(request, message)
+    
+    return redirect('admin-usermanagement')
+
+@login_required
+@role_required(['Admin'])
+def admin_user_delete(request):
+    if request.method == 'POST':
+        from .operation import delete_user
+        user_id = request.POST.get('user_id')
+        
+        success, message = delete_user(user_id)
+        if success:
+            messages.success(request, message)
+        else:
+            messages.error(request, message)
+    
+    return redirect('admin-usermanagement')
+
+@login_required
+@role_required(['Admin'])
+def admin_profile(request):
+    return render(request, 'ADMIN/ADMIN_profile.html')
 
 @login_required
 @role_required(['PENRO'])
@@ -92,12 +206,58 @@ def penro_usermanagement(request):
 @login_required
 @role_required(['PENRO'])
 def penro_profile(request):
-    return render(request, 'PENRO/PENRO_profile.html')
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'update_profile':
+            from .operation import update_user_profile_with_phone_and_pic
+            user_id = request.session.get('user_id')
+            first_name = request.POST.get('first_name')
+            last_name = request.POST.get('last_name')
+            phone_number = request.POST.get('phone_number')
+            profile_pic = request.FILES.get('profile_pic')
+            
+            success, message = update_user_profile_with_phone_and_pic(user_id, first_name, last_name, phone_number, profile_pic)
+            if success:
+                request.session['first_name'] = first_name
+                request.session['last_name'] = last_name
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+        
+        elif action == 'change_password':
+            from .operation import change_user_password
+            user_id = request.session.get('user_id')
+            current_password = request.POST.get('current_password')
+            new_password = request.POST.get('new_password')
+            confirm_password = request.POST.get('confirm_password')
+            
+            if new_password != confirm_password:
+                messages.error(request, 'New passwords do not match')
+            else:
+                success, message = change_user_password(user_id, current_password, new_password)
+                if success:
+                    messages.success(request, message)
+                else:
+                    messages.error(request, message)
+        
+        return redirect('PENRO-profile')
+    
+    from .operation import get_user_phone, get_user_profile_pic
+    user_id = request.session.get('user_id')
+    phone_number = get_user_phone(user_id)
+    profile_pic_url = get_user_profile_pic(user_id)
+    return render(request, 'PENRO/PENRO_profile.html', {'phone_number': phone_number, 'profile_pic_url': profile_pic_url})
 
 @login_required
 @role_required(['CENRO'])
 def cenro_dashboard(request):
     return render(request, 'CENRO/CENRO_dashboard.html')
+
+@login_required
+@role_required(['CENRO'])
+def cenro_profile(request):
+    return render(request, 'CENRO/CENRO_profile.html')
 
 @login_required
 @role_required(['CENRO'])

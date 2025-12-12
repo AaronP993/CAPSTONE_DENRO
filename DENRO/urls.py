@@ -31,9 +31,10 @@ urlpatterns = [
     path('sa/all-users/', views.sa_all_users, name='sa-all-users'),
     path('sa/profile/', views.sa_profile, name='sa-profile'),
 
-    # CENRO subpages 
+    # CENRO subpages
     path('cenro/activity-logs/', views.cenro_activitylogs, name='CENRO-activitylogs'),
     path('cenro/reports/',       views.cenro_reports,      name='CENRO-reports'),
+    path('cenro/profile/',       views.cenro_profile,      name='cenro-profile'),
     
     # PENRO subpages
     path('penro/activity-logs/', views.penro_activitylogs, name='PENRO-activitylogs'),
@@ -48,6 +49,12 @@ urlpatterns = [
     path("cenro/activity-logs/", views.cenro_activitylogs, name="cenro_activity_logs"),
 
     #Admin Subpages
+    path('admin/activity-logs/', views.admin_activitylogs, name='admin-activitylogs'),
+    path('admin/reports/', views.admin_reports, name='admin-reports'),
+    path('admin/user-management/', views.admin_usermanagement, name='admin-usermanagement'),
+    path('admin/user-update/', views.admin_user_update, name='admin-user-update'),
+    path('admin/user-delete/', views.admin_user_delete, name='admin-user-delete'),
+    path('admin/profile/', views.admin_profile, name='admin-profile'),
     path('admin/protected-areas/', views.protected_areas, name='protected-areas'),
     path('admin/protected-areas/convert/<path:file_path>/', views.convert_shapefile_to_geojson, name='convert-shapefile'),
 
