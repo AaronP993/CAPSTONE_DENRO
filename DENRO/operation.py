@@ -573,19 +573,21 @@ def api_cenros_by_penro(request, penro_id):
         items = [{"id": r[0], "name": r[1]} for r in cur.fetchall()]
     return JsonResponse({"items": items})
 # =========================
-# GET ENUMERATOR REPORTS for CENRO (WITH ALL FILTERS)
+# GET ENUMERATOR REPORTS (WITH ALL FILTERS)
 # =========================
-def get_enumerator_reports(cenro_id=None, from_date=None, to_date=None, establishment_type=None, pa_id=None, establishment_status=None):
+def get_enumerator_reports(submitter_role=None, from_date=None, to_date=None, establishment_type=None, pa_id=None, establishment_status=None, cenro_id=None, penro_id=None):
     """
-    Fetch enumerator reports for a CENRO office with all filters.
+    Fetch enumerator reports filtered by submitter role.
     
     Args:
-        cenro_id: Filter reports by CENRO office (None for all)
+        submitter_role: Filter by role of user who submitted report (CENRO, PENRO, Admin)
         from_date: Start date (datetime.date object or None)
         to_date: End date (datetime.date object or None)
         establishment_type: Filter by establishment type (None for all)
         pa_id: Filter by protected area ID (None for all)
         establishment_status: Filter by establishment status (None for all)
+        cenro_id: Filter by CENRO office (None for all)
+        penro_id: Filter by PENRO office (None for all)
     
     Returns:
         List of report dictionaries
@@ -618,9 +620,17 @@ def get_enumerator_reports(cenro_id=None, from_date=None, to_date=None, establis
             
             params = []
             
+            if submitter_role:
+                query += " AND LOWER(CAST(u.role AS TEXT)) = LOWER(%s)"
+                params.append(submitter_role)
+            
             if cenro_id:
                 query += " AND u.cenro_id = %s"
                 params.append(cenro_id)
+            
+            if penro_id:
+                query += " AND u.penro_id = %s"
+                params.append(penro_id)
             
             if from_date:
                 query += " AND er.report_date >= %s"
@@ -974,6 +984,9 @@ def get_report_details(report_id, cenro_id=None):
                 'noted_by_signature': build_signature_url(data.get('noted_by_signature'))
             }
 
+            # Fetch images for this report
+            report_details['images'] = get_report_images(report_id)
+
             return report_details
                 
     except DatabaseError as e:
@@ -1282,70 +1295,409 @@ def delete_protected_area(pa_id):
         return False, str(e)
 
 
+def get_reports_context(request, submitter_role):
+    """Get reports and context for a specific role."""
+    from datetime import datetime
+    
+    from_date_str = request.GET.get('from_date', None)
+    to_date_str = request.GET.get('to_date', None)
+    establishment_type = request.GET.get('establishment_type', None)
+    pa_id_str = request.GET.get('pa_id', None)
+    establishment_status = request.GET.get('establishment_status', None)
+    
+    from_date = None
+    to_date = None
+    
+    if from_date_str:
+        try:
+            from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            from_date = None
+    
+    if to_date_str:
+        try:
+            to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            to_date = None
+    
+    pa_id = None
+    if pa_id_str:
+        try:
+            pa_id = int(pa_id_str)
+        except (ValueError, TypeError):
+            pa_id = None
+    
+    reports = get_enumerator_reports(
+        submitter_role=submitter_role,
+        from_date=from_date,
+        to_date=to_date,
+        establishment_type=establishment_type,
+        pa_id=pa_id,
+        establishment_status=establishment_status
+    )
+    
+    office_id = request.session.get('region_id') or request.session.get('penro_id') or request.session.get('cenro_id')
+    establishment_types = get_establishment_types_for_cenro(office_id) if office_id else []
+    protected_areas = get_protected_areas_for_cenro(office_id) if office_id else []
+    
+    return {
+        'reports': reports,
+        'from_date': from_date,
+        'to_date': to_date,
+        'establishment_type': establishment_type,
+        'establishment_types': establishment_types,
+        'pa_id': pa_id,
+        'protected_areas': protected_areas,
+        'establishment_status': establishment_status,
+        'supabase_url': os.getenv('SUPABASE_URL'),
+        'supabase_bucket': os.getenv('SUPABASE_BUCKET', 'images'),
+    }
+
 def export_reports(reports, format_type):
-    """Export reports to PDF, Word, or Excel format"""
+    """Export detailed reports to PDF, Word, or Excel format"""
     from io import BytesIO
-    from django.http import HttpResponse
+    from django.http import HttpResponse, JsonResponse
+    
+    # Fetch detailed data for each report
+    detailed_reports = []
+    for report in reports:
+        detail = get_report_details(report.get('id'))
+        if detail:
+            detailed_reports.append(detail)
     
     if format_type == 'excel':
-        from openpyxl import Workbook
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font, Alignment
+            from openpyxl.drawing.image import Image as XLImage
+        except ImportError:
+            return JsonResponse({'error': 'Excel export requires openpyxl. Install with: pip install openpyxl'}, status=500)
+        
         wb = Workbook()
         ws = wb.active
-        ws.title = 'Reports'
-        ws.append(['Report ID', 'Date', 'Establishment', 'Type', 'Status', 'Protected Area', 'Proponent', 'Enumerator', 'Remarks'])
-        for report in reports:
-            ws.append([report.get('id'), str(report.get('report_date') or ''), report.get('establishment_name') or '', report.get('establishment_type') or '', report.get('establishment_status') or '', report.get('pa_name') or '', report.get('proponent_name') or '', report.get('enumerator_name') or '', report.get('remarks') or ''])
+        ws.title = 'Detailed Reports'
+        
+        for detail in detailed_reports:
+            ws.append(['ENUMERATOR REPORT #' + str(detail.get('id', ''))])
+            ws.append([])
+            ws.append(['Protected Area:', detail.get('pa_name', '')])
+            ws.append(['Report Date:', str(detail.get('report_date', ''))])
+            ws.append(['Created At:', str(detail.get('created_at', ''))])
+            ws.append([])
+            ws.append(['Establishment Name:', detail.get('establishment_name', '')])
+            ws.append(['Proponent/Owner:', detail.get('proponent_name', '')])
+            ws.append(['Contact Number:', detail.get('contact_number', '')])
+            ws.append(['Location:', detail.get('location', '')])
+            ws.append([])
+            ws.append(['PROPERTY DETAILS'])
+            ws.append(['Lot Status:', detail.get('lot_status', '')])
+            ws.append(['Land Classification:', detail.get('land_classification', '')])
+            ws.append(['Title No:', str(detail.get('title_no', ''))])
+            ws.append(['Lot No:', str(detail.get('lot_no', ''))])
+            ws.append(['Lot Owner:', detail.get('lot_owner', '')])
+            ws.append(['Tax Declaration No:', detail.get('tax_declaration_no', '')])
+            ws.append([])
+            ws.append(['COORDINATES'])
+            ws.append(['Latitude:', str(detail.get('latitude', ''))])
+            ws.append(['Longitude:', str(detail.get('longitude', ''))])
+            ws.append([])
+            ws.append(['Area Covered (sq.m):', str(detail.get('area_covered', ''))])
+            ws.append(['PA Zone:', detail.get('pa_zone', '')])
+            ws.append(['Within Easement:', 'Yes' if detail.get('within_easement') else 'No'])
+            ws.append([])
+            ws.append(['ESTABLISHMENT DETAILS'])
+            ws.append(['Type:', detail.get('establishment_type', '')])
+            ws.append(['Status:', detail.get('establishment_status', '')])
+            ws.append(['Description:', detail.get('description', '')])
+            ws.append([])
+            ws.append(['PERMITS FROM LGUs:'])
+            lgu_permits = [p for p in detail.get('permits', []) if any(x in p.get('name', '') for x in ['Mayor', 'Business', 'Building'])]
+            for permit in lgu_permits:
+                ws.append([permit.get('name', ''), permit.get('number', ''), permit.get('issued', ''), permit.get('expiry', '')])
+            ws.append([])
+            ws.append(['PERMITS FROM DENR/EMB:'])
+            denr_permits = [p for p in detail.get('permits', []) if not any(x in p.get('name', '') for x in ['Mayor', 'Business', 'Building'])]
+            for permit in denr_permits:
+                ws.append([permit.get('name', ''), permit.get('number', ''), permit.get('issued', ''), permit.get('expiry', '')])
+            ws.append([])
+            ws.append(['Remarks:', detail.get('remarks', '')])
+            ws.append([])
+            ws.append(['SIGNATURES'])
+            ws.append(['Enumerator:', detail.get('enumerator_name', ''), 'Date:', str(detail.get('enumerator_signature_date', ''))])
+            ws.append(['Informant:', detail.get('informant_name', ''), 'Date:', str(detail.get('informant_signature_date', ''))])
+            ws.append([])
+            ws.append(['ATTESTATION'])
+            ws.append(['Attested by:', detail.get('attested_by_name', ''), detail.get('attested_by_position', '')])
+            ws.append(['Noted by:', detail.get('noted_by_name', ''), detail.get('noted_by_position', '')])
+            ws.append([])
+            ws.append(['GEO-TAGGED IMAGES'])
+            current_row = ws.max_row + 1
+            images = detail.get('images', [])
+            for idx, img in enumerate(images, 1):
+                try:
+                    import requests  # type: ignore
+                    from io import BytesIO as ImgBytesIO
+                    img_url = img.get('image', '') or img.get('image_url', '') or img.get('image_path', '')
+                    logger.info(f"Excel: Processing image {idx}: {img_url}")
+                    if img_url:
+                        if not img_url.startswith('http'):
+                            supabase_url = os.getenv('SUPABASE_URL', '')
+                            bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+                            img_url = f"{supabase_url}/storage/v1/object/public/{bucket}/{img_url.lstrip('/')}"
+                        logger.info(f"Excel: Fetching from: {img_url}")
+                        response = requests.get(img_url, timeout=15)
+                        logger.info(f"Excel: Response status: {response.status_code}")
+                        if response.status_code == 200:
+                            img_buffer = ImgBytesIO(response.content)
+                            xl_img = XLImage(img_buffer)
+                            xl_img.width = 300
+                            xl_img.height = 225
+                            ws.add_image(xl_img, f'A{current_row}')
+                            ws.row_dimensions[current_row].height = 170
+                            ws.append([])
+                            current_row = ws.max_row
+                            ws.append([f'Image {idx} - Location:', img.get('location', '') or img.get('location_name', '')])
+                            ws.append(['Captured:', img.get('captured_at', '')])
+                            ws.append([])
+                            current_row = ws.max_row + 1
+                        else:
+                            ws.append([f'Image {idx} (HTTP {response.status_code}):', img_url])
+                            ws.append(['Location:', img.get('location', '')])
+                            current_row = ws.max_row + 1
+                except Exception as e:
+                    logger.exception(f"Excel: Error embedding image {idx}: {e}")
+                    ws.append([f'Image {idx} URL:', img.get('image', '')])
+                    ws.append(['Location:', img.get('location', '')])
+                    ws.append(['Error:', str(e)])
+                    ws.append([])
+                    current_row = ws.max_row + 1
+            ws.append([])
+            ws.append(['='*50])
+            ws.append([])
+        
         buffer = BytesIO()
         wb.save(buffer)
         buffer.seek(0)
         response = HttpResponse(buffer.read(), content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-        response['Content-Disposition'] = 'attachment; filename="reports.xlsx"'
+        response['Content-Disposition'] = 'attachment; filename="detailed_reports.xlsx"'
         return response
     
     elif format_type == 'word':
-        from docx import Document
+        try:
+            from docx import Document
+            from docx.shared import Pt, Inches
+        except ImportError:
+            return JsonResponse({'error': 'Word export requires python-docx. Install with: pip install python-docx'}, status=500)
+        
         doc = Document()
-        doc.add_heading('Enumerator Reports', 0)
-        table = doc.add_table(rows=1, cols=9)
-        table.style = 'Light Grid Accent 1'
-        hdr = table.rows[0].cells
-        headers = ['Report ID', 'Date', 'Establishment', 'Type', 'Status', 'Protected Area', 'Proponent', 'Enumerator', 'Remarks']
-        for i, h in enumerate(headers):
-            hdr[i].text = h
-        for report in reports:
-            row = table.add_row().cells
-            row[0].text = str(report.get('id') or '')
-            row[1].text = str(report.get('report_date') or '')
-            row[2].text = report.get('establishment_name') or ''
-            row[3].text = report.get('establishment_type') or ''
-            row[4].text = report.get('establishment_status') or ''
-            row[5].text = report.get('pa_name') or ''
-            row[6].text = report.get('proponent_name') or ''
-            row[7].text = report.get('enumerator_name') or ''
-            row[8].text = report.get('remarks') or ''
+        doc.add_heading('Enumerator Reports - Detailed', 0)
+        
+        for detail in detailed_reports:
+            doc.add_heading(f"ENUMERATOR REPORT #{detail.get('id', '')}", level=1)
+            doc.add_paragraph(f"Protected Area: {detail.get('pa_name', '')}")
+            doc.add_paragraph(f"Report Date: {detail.get('report_date', '')}")
+            doc.add_paragraph(f"Created At: {detail.get('created_at', '')}")
+            
+            doc.add_heading('Basic Information', level=2)
+            doc.add_paragraph(f"Establishment: {detail.get('establishment_name', '')}")
+            doc.add_paragraph(f"Proponent/Owner: {detail.get('proponent_name', '')}")
+            doc.add_paragraph(f"Contact Number: {detail.get('contact_number', '')}")
+            doc.add_paragraph(f"Location: {detail.get('location', '')}")
+            
+            doc.add_heading('Property Details', level=2)
+            doc.add_paragraph(f"Lot Status: {detail.get('lot_status', '')}")
+            doc.add_paragraph(f"Land Classification: {detail.get('land_classification', '')}")
+            doc.add_paragraph(f"Title No: {detail.get('title_no', '')}")
+            doc.add_paragraph(f"Lot No: {detail.get('lot_no', '')}")
+            doc.add_paragraph(f"Lot Owner: {detail.get('lot_owner', '')}")
+            doc.add_paragraph(f"Tax Declaration No: {detail.get('tax_declaration_no', '')}")
+            
+            doc.add_heading('Coordinates', level=2)
+            doc.add_paragraph(f"Latitude: {detail.get('latitude', '')}")
+            doc.add_paragraph(f"Longitude: {detail.get('longitude', '')}")
+            
+            doc.add_heading('Area Information', level=2)
+            doc.add_paragraph(f"Area Covered (sq.m): {detail.get('area_covered', '')}")
+            doc.add_paragraph(f"PA Zone: {detail.get('pa_zone', '')}")
+            doc.add_paragraph(f"Within Easement: {'Yes' if detail.get('within_easement') else 'No'}")
+            
+            doc.add_heading('Establishment Details', level=2)
+            doc.add_paragraph(f"Type: {detail.get('establishment_type', '')}")
+            doc.add_paragraph(f"Status: {detail.get('establishment_status', '')}")
+            doc.add_paragraph(f"Description: {detail.get('description', '')}")
+            
+            doc.add_heading('Permits from LGUs', level=2)
+            lgu_permits = [p for p in detail.get('permits', []) if any(x in p.get('name', '') for x in ['Mayor', 'Business', 'Building'])]
+            for permit in lgu_permits:
+                doc.add_paragraph(f"{permit.get('name', '')}: {permit.get('number', '')} (Issued: {permit.get('issued', '')}, Expiry: {permit.get('expiry', '')})")
+            
+            doc.add_heading('Permits from DENR/EMB', level=2)
+            denr_permits = [p for p in detail.get('permits', []) if not any(x in p.get('name', '') for x in ['Mayor', 'Business', 'Building'])]
+            for permit in denr_permits:
+                doc.add_paragraph(f"{permit.get('name', '')}: {permit.get('number', '')} (Issued: {permit.get('issued', '')})")
+            
+            doc.add_heading('Remarks', level=2)
+            doc.add_paragraph(detail.get('remarks', ''))
+            
+            doc.add_heading('Signatures', level=2)
+            doc.add_paragraph(f"Enumerator: {detail.get('enumerator_name', '')} (Date: {detail.get('enumerator_signature_date', '')})")
+            doc.add_paragraph(f"Informant: {detail.get('informant_name', '')} (Date: {detail.get('informant_signature_date', '')})")
+            
+            doc.add_heading('Attestation', level=2)
+            doc.add_paragraph(f"Attested by: {detail.get('attested_by_name', '')} - {detail.get('attested_by_position', '')}")
+            doc.add_paragraph(f"Noted by: {detail.get('noted_by_name', '')} - {detail.get('noted_by_position', '')}")
+            
+            doc.add_heading('Geo-Tagged Images', level=2)
+            images = detail.get('images', [])
+            if not images:
+                doc.add_paragraph('No images available')
+            for img in images:
+                try:
+                    import requests  # type: ignore
+                    from io import BytesIO as ImgBytesIO
+                    img_url = img.get('image', '') or img.get('image_url', '') or img.get('image_path', '')
+                    logger.info(f"Processing image: {img_url}")
+                    if img_url:
+                        if not img_url.startswith('http'):
+                            supabase_url = os.getenv('SUPABASE_URL', '')
+                            bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+                            img_url = f"{supabase_url}/storage/v1/object/public/{bucket}/{img_url.lstrip('/')}"
+                        logger.info(f"Fetching image from: {img_url}")
+                        response = requests.get(img_url, timeout=15)
+                        logger.info(f"Image response status: {response.status_code}")
+                        if response.status_code == 200:
+                            doc.add_picture(ImgBytesIO(response.content), width=Inches(4))
+                            doc.add_paragraph(f"Location: {img.get('location', '') or img.get('location_name', '')}")
+                            doc.add_paragraph(f"Captured: {img.get('captured_at', '')}")
+                        else:
+                            doc.add_paragraph(f"Image URL: {img_url} (HTTP {response.status_code})")
+                            doc.add_paragraph(f"Location: {img.get('location', '')}")
+                except Exception as e:
+                    logger.exception(f"Error embedding image: {e}")
+                    doc.add_paragraph(f"Image: {img.get('image', '')} (Error: {str(e)})")
+                    doc.add_paragraph(f"Location: {img.get('location', '')}")
+            
+            doc.add_page_break()
+        
         buffer = BytesIO()
         doc.save(buffer)
         buffer.seek(0)
         response = HttpResponse(buffer.read(), content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-        response['Content-Disposition'] = 'attachment; filename="reports.docx"'
+        response['Content-Disposition'] = 'attachment; filename="detailed_reports.docx"'
         return response
     
     else:  # PDF
-        from reportlab.lib.pagesizes import letter, landscape
-        from reportlab.lib import colors
-        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
-        from reportlab.lib.styles import getSampleStyleSheet
+        try:
+            from reportlab.lib.pagesizes import letter
+            from reportlab.lib import colors
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak, Table, TableStyle
+            from reportlab.lib.units import inch
+        except ImportError:
+            return JsonResponse({'error': 'PDF export requires reportlab. Install with: pip install reportlab'}, status=500)
+        
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=landscape(letter))
+        doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
         elements = []
-        data = [['ID', 'Date', 'Establishment', 'Type', 'Status', 'PA', 'Proponent', 'Enumerator', 'Remarks']]
-        for report in reports:
-            data.append([str(report.get('id', '')), str(report.get('report_date', '')), (report.get('establishment_name') or '')[:20], (report.get('establishment_type') or '')[:15], (report.get('establishment_status') or '')[:15], (report.get('pa_name') or '')[:15], (report.get('proponent_name') or '')[:20], (report.get('enumerator_name') or '')[:20], (report.get('remarks') or '')[:30]])
-        table = Table(data)
-        table.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.grey), ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke), ('ALIGN', (0, 0), (-1, -1), 'CENTER'), ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'), ('FONTSIZE', (0, 0), (-1, 0), 10), ('BOTTOMPADDING', (0, 0), (-1, 0), 12), ('BACKGROUND', (0, 1), (-1, -1), colors.beige), ('GRID', (0, 0), (-1, -1), 1, colors.black)]))
-        elements.append(table)
+        styles = getSampleStyleSheet()
+        
+        for detail in detailed_reports:
+            elements.append(Paragraph(f"<b>ENUMERATOR REPORT #{detail.get('id', '')}</b>", styles['Title']))
+            elements.append(Spacer(1, 0.15*inch))
+            
+            elements.append(Paragraph(f"<b>Protected Area:</b> {detail.get('pa_name', '')}", styles['Normal']))
+            elements.append(Paragraph(f"<b>Report Date:</b> {detail.get('report_date', '')} | <b>Created:</b> {detail.get('created_at', '')}", styles['Normal']))
+            elements.append(Spacer(1, 0.1*inch))
+            
+            elements.append(Paragraph("<b>Basic Information</b>", styles['Heading2']))
+            elements.append(Paragraph(f"Establishment: {detail.get('establishment_name', '')}", styles['Normal']))
+            elements.append(Paragraph(f"Proponent/Owner: {detail.get('proponent_name', '')}", styles['Normal']))
+            elements.append(Paragraph(f"Contact: {detail.get('contact_number', '')}", styles['Normal']))
+            elements.append(Paragraph(f"Location: {detail.get('location', '')}", styles['Normal']))
+            elements.append(Spacer(1, 0.1*inch))
+            
+            elements.append(Paragraph("<b>Property Details</b>", styles['Heading2']))
+            elements.append(Paragraph(f"Lot Status: {detail.get('lot_status', '')} | Land Class: {detail.get('land_classification', '')}", styles['Normal']))
+            elements.append(Paragraph(f"Title No: {detail.get('title_no', '')} | Lot No: {detail.get('lot_no', '')}", styles['Normal']))
+            elements.append(Paragraph(f"Lot Owner: {detail.get('lot_owner', '')}", styles['Normal']))
+            elements.append(Paragraph(f"Tax Declaration No: {detail.get('tax_declaration_no', '')}", styles['Normal']))
+            elements.append(Paragraph(f"Coordinates: {detail.get('latitude', '')}, {detail.get('longitude', '')}", styles['Normal']))
+            elements.append(Paragraph(f"Area: {detail.get('area_covered', '')} sq.m | PA Zone: {detail.get('pa_zone', '')} | Easement: {'Yes' if detail.get('within_easement') else 'No'}", styles['Normal']))
+            elements.append(Spacer(1, 0.1*inch))
+            
+            elements.append(Paragraph("<b>Establishment</b>", styles['Heading2']))
+            elements.append(Paragraph(f"Type: {detail.get('establishment_type', '')} | Status: {detail.get('establishment_status', '')}", styles['Normal']))
+            elements.append(Paragraph(f"Description: {detail.get('description', '')}", styles['Normal']))
+            elements.append(Spacer(1, 0.1*inch))
+            
+            lgu_permits = [p for p in detail.get('permits', []) if any(x in p.get('name', '') for x in ['Mayor', 'Business', 'Building'])]
+            if lgu_permits:
+                elements.append(Paragraph("<b>LGU Permits</b>", styles['Heading2']))
+                permit_data = [['Permit', 'Number', 'Issued', 'Expiry']]
+                for permit in lgu_permits:
+                    permit_data.append([permit.get('name', '')[:25], permit.get('number', ''), permit.get('issued', ''), permit.get('expiry', '')])
+                permit_table = Table(permit_data, colWidths=[2.2*inch, 1.3*inch, 1*inch, 1*inch])
+                permit_table.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.grey), ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke), ('GRID', (0, 0), (-1, -1), 1, colors.black), ('FONTSIZE', (0, 0), (-1, -1), 8)]))
+                elements.append(permit_table)
+                elements.append(Spacer(1, 0.1*inch))
+            
+            denr_permits = [p for p in detail.get('permits', []) if not any(x in p.get('name', '') for x in ['Mayor', 'Business', 'Building'])]
+            if denr_permits:
+                elements.append(Paragraph("<b>DENR/EMB Permits</b>", styles['Heading2']))
+                permit_data = [['Permit', 'Number', 'Issued']]
+                for permit in denr_permits:
+                    permit_data.append([permit.get('name', '')[:30], permit.get('number', ''), permit.get('issued', '')])
+                permit_table = Table(permit_data, colWidths=[3*inch, 1.5*inch, 1.5*inch])
+                permit_table.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), colors.grey), ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke), ('GRID', (0, 0), (-1, -1), 1, colors.black), ('FONTSIZE', (0, 0), (-1, -1), 8)]))
+                elements.append(permit_table)
+                elements.append(Spacer(1, 0.1*inch))
+            
+            elements.append(Paragraph(f"<b>Remarks:</b> {detail.get('remarks', '')}", styles['Normal']))
+            elements.append(Spacer(1, 0.1*inch))
+            
+            elements.append(Paragraph("<b>Signatures</b>", styles['Heading2']))
+            elements.append(Paragraph(f"Enumerator: {detail.get('enumerator_name', '')} ({detail.get('enumerator_signature_date', '')})", styles['Normal']))
+            elements.append(Paragraph(f"Informant: {detail.get('informant_name', '')} ({detail.get('informant_signature_date', '')})", styles['Normal']))
+            elements.append(Paragraph(f"Attested by: {detail.get('attested_by_name', '')} - {detail.get('attested_by_position', '')}", styles['Normal']))
+            elements.append(Paragraph(f"Noted by: {detail.get('noted_by_name', '')} - {detail.get('noted_by_position', '')}", styles['Normal']))
+            
+            images = detail.get('images', [])
+            if images:
+                elements.append(Spacer(1, 0.1*inch))
+                elements.append(Paragraph("<b>Geo-Tagged Images</b>", styles['Heading2']))
+                for img in images:
+                    try:
+                        import requests  # type: ignore
+                        from reportlab.platypus import Image as RLImage
+                        from io import BytesIO as ImgBytesIO
+                        img_url = img.get('image', '') or img.get('image_url', '') or img.get('image_path', '')
+                        logger.info(f"PDF: Processing image: {img_url}")
+                        if img_url:
+                            if not img_url.startswith('http'):
+                                supabase_url = os.getenv('SUPABASE_URL', '')
+                                bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+                                img_url = f"{supabase_url}/storage/v1/object/public/{bucket}/{img_url.lstrip('/')}"
+                            logger.info(f"PDF: Fetching from: {img_url}")
+                            response = requests.get(img_url, timeout=15)
+                            logger.info(f"PDF: Response status: {response.status_code}")
+                            if response.status_code == 200:
+                                img_buffer = ImgBytesIO(response.content)
+                                rl_img = RLImage(img_buffer, width=4*inch, height=3*inch)
+                                elements.append(rl_img)
+                                elements.append(Paragraph(f"Location: {img.get('location', '') or img.get('location_name', '')}", styles['Normal']))
+                                elements.append(Paragraph(f"Captured: {img.get('captured_at', '')}", styles['Normal']))
+                                elements.append(Spacer(1, 0.1*inch))
+                            else:
+                                elements.append(Paragraph(f"Image URL: {img_url} (HTTP {response.status_code})", styles['Normal']))
+                    except Exception as e:
+                        logger.exception(f"PDF: Error embedding image: {e}")
+                        elements.append(Paragraph(f"Image: {img.get('image', '')} (Error: {str(e)})", styles['Normal']))
+                        elements.append(Paragraph(f"Location: {img.get('location', '')}", styles['Normal']))
+            
+            elements.append(PageBreak())
+        
         doc.build(elements)
         buffer.seek(0)
         response = HttpResponse(buffer.read(), content_type='application/pdf')
-        response['Content-Disposition'] = 'attachment; filename="reports.pdf"'
+        response['Content-Disposition'] = 'attachment; filename="detailed_reports.pdf"'
         return response

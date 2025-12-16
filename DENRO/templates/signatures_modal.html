@@ -4,18 +4,23 @@
 // Signature pad for attestations
 // ------------------------
 
-function getCookie(name) {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(';').shift();
+if (typeof getCookie === 'undefined') {
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+  }
 }
 
-let signatureCanvas = null;
-let signatureCtx = null;
-let signatureDrawing = false;
-let currentSignatureType = 'attested'; // 'attested' or 'noted'
+if (typeof signatureCanvas === 'undefined') {
+  var signatureCanvas = null;
+  var signatureCtx = null;
+  var signatureDrawing = false;
+  var currentSignatureType = 'attested'; // 'attested' or 'noted'
+}
 
-function openSignaturePad(kind) {
+if (typeof openSignaturePad === 'undefined') {
+  window.openSignaturePad = function(kind) {
   currentSignatureType = kind || 'attested';
   
   // only allow for CENRO or PENRO roles
@@ -87,18 +92,24 @@ function openSignaturePad(kind) {
   positionInput.value = role === 'penro' ? 'PENRO Head' : (role === 'cenro' ? 'CENRO Head' : '');
 
   overlay.style.display = 'flex';
+  };
 }
 
-function clearSignature(){
-  if(signatureCtx){ signatureCtx.clearRect(0,0,signatureCanvas.width, signatureCanvas.height); }
+if (typeof clearSignature === 'undefined') {
+  window.clearSignature = function(){
+    if(signatureCtx){ signatureCtx.clearRect(0,0,signatureCanvas.width, signatureCanvas.height); }
+  };
 }
 
-function closeSignaturePad(){
-  const overlay = document.getElementById('signatureOverlay');
-  if(overlay) overlay.style.display = 'none';
+if (typeof closeSignaturePad === 'undefined') {
+  window.closeSignaturePad = function(){
+    const overlay = document.getElementById('signatureOverlay');
+    if(overlay) overlay.style.display = 'none';
+  };
 }
 
-function saveSignature(){
+if (typeof saveSignature === 'undefined') {
+  window.saveSignature = function(){
   const overlay = document.getElementById('signatureOverlay');
   const name = document.getElementById('sigNameInput').value.trim();
   const position = document.getElementById('sigPositionInput').value.trim();
@@ -156,5 +167,6 @@ function saveSignature(){
     console.error(err);
     alert('Error saving attestation.');
   });
+  };
 }
 </script>

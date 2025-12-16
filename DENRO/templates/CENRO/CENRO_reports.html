@@ -276,9 +276,8 @@
     </div>
     
     <div class="filter-group">
-      <label class="filter-label">Type:</label>
       <select class="type-select" id="typeSelect">
-        <option value="">All Types</option>
+        <option value="">Establishment Types</option>
         <option value="Hotel" {% if establishment_type == 'Hotel' %}selected{% endif %}>Hotel</option>
         <option value="Water refilling station" {% if establishment_type == 'Water refilling station' %}selected{% endif %}>Water refilling station</option>
         <option value="Pharmacy/Drug Store" {% if establishment_type == 'Pharmacy/Drug Store' %}selected{% endif %}>Pharmacy/Drug Store</option>
@@ -299,7 +298,6 @@
     </div>
     
     <div class="filter-group">
-      <label class="filter-label">Protected Area:</label>
       <select class="pa-select" id="paSelect">
         <option value="">All Protected Areas</option>
         {% for pa in protected_areas %}
@@ -311,7 +309,6 @@
     </div>
     
     <div class="filter-group">
-      <label class="filter-label">Status:</label>
       <select class="status-select" id="statusSelect">
         <option value="">All Statuses</option>
         <option value="Functional" {% if establishment_status == 'Functional' %}selected{% endif %}>Functional</option>

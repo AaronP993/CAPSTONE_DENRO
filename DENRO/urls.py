@@ -34,21 +34,28 @@ urlpatterns = [
     # CENRO subpages 
     path('cenro/activity-logs/', views.cenro_activitylogs, name='CENRO-activitylogs'),
     path('cenro/reports/',       views.cenro_reports,      name='CENRO-reports'),
-    
-    # PENRO subpages
-    path('penro/activity-logs/', views.penro_activitylogs, name='PENRO-activitylogs'),
-    path('penro/reports/', views.penro_reports, name='PENRO-reports'),
-    path('penro/user-management/', views.penro_usermanagement, name='PENRO-usermanagement'),
-    path('penro/profile/', views.penro_profile, name='PENRO-profile'),
     path('cenro/reports/export/', views.cenro_export_reports, name='CENRO-reports-export'),
     path('cenro/reports/<int:report_id>/details/', views.cenro_report_details, name='CENRO-report-details'),
     path('cenro/reports/<int:report_id>/attest/', views.cenro_attest_report, name='CENRO-report-attest'),
     path('cenro/reports/<int:report_id>/note/', views.cenro_note_report, name='CENRO-report-note'),
     path('cenro/templates/',     views.cenro_templates,    name='CENRO-templates'),
     path("cenro/activity-logs/", views.cenro_activitylogs, name="cenro_activity_logs"),
+    
+    # PENRO subpages
+    path('penro/activity-logs/', views.penro_activitylogs, name='PENRO-activitylogs'),
+    path('penro/reports/', views.penro_reports, name='PENRO-reports'),
+    path('penro/reports/export/', views.penro_export_reports, name='PENRO-reports-export'),
+    path('penro/user-management/', views.penro_usermanagement, name='PENRO-usermanagement'),
+    path('penro/profile/', views.penro_profile, name='PENRO-profile'),
+    
 
     #Admin Subpages
     path('admin/protected-areas/', views.protected_areas, name='protected-areas'),
     path('admin/protected-areas/convert/<path:file_path>/', views.convert_shapefile_to_geojson, name='convert-shapefile'),
+    path('admin/reports/', views.admin_reports, name='ADMIN-reports'),
+    path('admin/reports/', views.admin_reports, name='Admin-reports'),
+    path('admin/reports/<int:report_id>/details/', views.admin_report_details, name='Admin-report-details'),
+    path('admin/reports/export/', views.admin_export_reports, name='Admin-reports-export'),
+
 
 ]

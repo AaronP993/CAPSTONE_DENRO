@@ -82,34 +82,6 @@ def penro_activitylogs(request):
 @login_required
 @role_required(['PENRO'])
 def penro_reports(request):
-    return render(request, 'PENRO/PENRO_reports.html')
-
-@login_required
-@role_required(['PENRO'])
-def penro_usermanagement(request):
-    return render(request, 'PENRO/PENRO_usermanagement.html')
-
-@login_required
-@role_required(['PENRO'])
-def penro_profile(request):
-    return render(request, 'PENRO/PENRO_profile.html')
-
-@login_required
-@role_required(['CENRO'])
-def cenro_dashboard(request):
-    return render(request, 'CENRO/CENRO_dashboard.html')
-
-@login_required
-@role_required(['CENRO'])
-def cenro_activitylogs(request):
-    return render(request, 'CENRO/CENRO_activitylogs.html')
-
-@login_required
-@role_required(['CENRO'])
-def cenro_reports(request):
-    # Get current user's CENRO ID from session
-    cenro_id = request.session.get('cenro_id')
-    
     # Get filter parameters from query string
     from_date_str = request.GET.get('from_date', None)
     to_date_str = request.GET.get('to_date', None)
@@ -141,9 +113,9 @@ def cenro_reports(request):
         except (ValueError, TypeError):
             pa_id = None
     
-    # Fetch reports for this CENRO
+    # Fetch reports submitted by PENRO role only
     reports = get_enumerator_reports(
-        cenro_id=cenro_id, 
+        submitter_role='PENRO',
         from_date=from_date,
         to_date=to_date,
         establishment_type=establishment_type,
@@ -152,6 +124,92 @@ def cenro_reports(request):
     )
     
     # Get list of establishment types and protected areas for dropdowns
+    penro_id = request.session.get('penro_id')
+    establishment_types = get_establishment_types_for_cenro(penro_id) if penro_id else []
+    protected_areas = get_protected_areas_for_cenro(penro_id) if penro_id else []
+    
+    # Pass reports and filter options to template
+    context = {
+        'reports': reports,
+        'from_date': from_date,
+        'to_date': to_date,
+        'establishment_type': establishment_type,
+        'establishment_types': establishment_types,
+        'pa_id': pa_id,
+        'protected_areas': protected_areas,
+        'establishment_status': establishment_status,
+        'supabase_url': os.getenv('SUPABASE_URL'),
+        'supabase_bucket': os.getenv('SUPABASE_BUCKET', 'images'),
+    }
+    
+    return render(request, 'PENRO/PENRO_reports.html', context)
+
+@login_required
+@role_required(['PENRO'])
+def penro_usermanagement(request):
+    return render(request, 'PENRO/PENRO_usermanagement.html')
+
+@login_required
+@role_required(['PENRO'])
+def penro_profile(request):
+    return render(request, 'PENRO/PENRO_profile.html')
+
+@login_required
+@role_required(['CENRO'])
+def cenro_dashboard(request):
+    return render(request, 'CENRO/CENRO_dashboard.html')
+
+@login_required
+@role_required(['CENRO'])
+def cenro_activitylogs(request):
+    return render(request, 'CENRO/CENRO_activitylogs.html')
+
+@login_required
+@role_required(['CENRO'])
+def cenro_reports(request):
+    # Get filter parameters from query string
+    from_date_str = request.GET.get('from_date', None)
+    to_date_str = request.GET.get('to_date', None)
+    establishment_type = request.GET.get('establishment_type', None)
+    pa_id_str = request.GET.get('pa_id', None)
+    establishment_status = request.GET.get('establishment_status', None)
+    
+    # Convert date strings to date objects
+    from_date = None
+    to_date = None
+    
+    if from_date_str:
+        try:
+            from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            from_date = None
+    
+    if to_date_str:
+        try:
+            to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            to_date = None
+    
+    # Convert pa_id to int if present
+    pa_id = None
+    if pa_id_str:
+        try:
+            pa_id = int(pa_id_str)
+        except (ValueError, TypeError):
+            pa_id = None
+    
+    # Fetch reports submitted by CENRO role only
+    reports = get_enumerator_reports(
+        submitter_role='CENRO',
+        from_date=from_date,
+        to_date=to_date,
+        establishment_type=establishment_type,
+        pa_id=pa_id,
+        establishment_status=establishment_status
+    )
+    
+    # Get list of establishment types and protected areas for dropdowns
+    cenro_id = request.session.get('cenro_id')
     establishment_types = get_establishment_types_for_cenro(cenro_id) if cenro_id else []
     protected_areas = get_protected_areas_for_cenro(cenro_id) if cenro_id else []
     
@@ -165,7 +223,6 @@ def cenro_reports(request):
         'pa_id': pa_id,
         'protected_areas': protected_areas,
         'establishment_status': establishment_status,
-        # 🆕 ADD THESE TWO LINES FOR SUPABASE SUPPORT
         'supabase_url': os.getenv('SUPABASE_URL'),
         'supabase_bucket': os.getenv('SUPABASE_BUCKET', 'images'),
     }
@@ -194,7 +251,15 @@ def cenro_export_reports(request):
     to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date() if to_date_str else None
     pa_id = int(pa_id_str) if pa_id_str else None
     
-    reports = get_enumerator_reports(cenro_id, from_date, to_date, establishment_type, pa_id, establishment_status)
+    reports = get_enumerator_reports(
+        submitter_role='CENRO',
+        from_date=from_date,
+        to_date=to_date,
+        establishment_type=establishment_type,
+        pa_id=pa_id,
+        establishment_status=establishment_status,
+        cenro_id=cenro_id
+    )
     return export_reports(reports, format_type)
 
 @login_required
@@ -216,6 +281,32 @@ def cenro_report_details(request, report_id):
     report_data['images'] = images
 
     return JsonResponse(report_data)
+
+@login_required
+@role_required(['Admin'])
+def admin_report_details(request, report_id):
+    report_data = get_report_details(report_id)
+    if not report_data:
+        return JsonResponse({'error': 'Report not found'}, status=404)
+    images = get_report_images(report_id)
+    report_data['images'] = images
+    return JsonResponse(report_data)
+
+@login_required
+@role_required(['PENRO'])
+def penro_export_reports(request):
+    from . import operation as op
+    format_type = request.GET.get('format', 'pdf')
+    context = op.get_reports_context(request, 'PENRO')
+    return op.export_reports(context['reports'], format_type)
+
+@login_required
+@role_required(['Admin'])
+def admin_export_reports(request):
+    from . import operation as op
+    format_type = request.GET.get('format', 'pdf')
+    context = op.get_reports_context(request, 'Admin')
+    return op.export_reports(context['reports'], format_type)
 
 
 @login_required
@@ -310,6 +401,13 @@ def cenro_activity_logs(request):
 
 
 # Admin
+
+@login_required
+@role_required(['Admin'])
+def admin_reports(request):
+    from . import operation as op
+    context = op.get_reports_context(request, 'Admin')
+    return render(request, 'ADMIN/ADMIN_reports.html', context)
 
 @login_required
 @role_required(['Admin'])
