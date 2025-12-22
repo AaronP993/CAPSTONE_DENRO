@@ -25,7 +25,18 @@
         <span>Reports</span>
       </a>
     </li>
-    
+    <li>
+      <a href="{% url 'track-establishment' %}">
+        <img src="{% static 'images/reports.png' %}" alt="" class="nav-icon" aria-hidden="true">
+        <span>Track Establishment</span>
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'CENRO-usermanagement' %}">
+        <img src="{% static 'images/users.png' %}" alt="" class="nav-icon" aria-hidden="true">
+        <span>User Management</span>
+      </a>
+    </li>
     <li>
       <a href="{% url 'cenro-profile' %}">
         <img src="{% static 'images/users.png' %}" alt="" class="nav-icon" aria-hidden="true">

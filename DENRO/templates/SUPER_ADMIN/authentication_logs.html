@@ -1,8 +1,110 @@
-{% extends "base.html" %} 
+{% extends "base.html" %}
+{% load static %}
 
-{% block title %}Authentication Logs{% endblock %} 
+{% block title %}Authentication Logs{% endblock %}
 
-{%block content %}
-<h1>Authentication Logs</h1>
-<p>Content for Authentication Logs page.</p>
+{% block content %}
+{% include 'includes/topnav/topnav_superadmin.html' with page_title="AUTHENTICATION LOGS" %}
+<div class="dashboard-container" style="padding: 30px;">
+  <div style="background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+    <h2 style="margin-bottom: 20px; color: #222;">Authentication Logs</h2>
+    
+    <!-- Filter Section -->
+    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+      <form method="get" style="display: flex; gap: 10px; align-items: end; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 200px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Username:</label>
+          <input type="text" name="username" value="{{ request.GET.username }}" placeholder="Search username" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">
+        </div>
+        <div style="flex: 1; min-width: 150px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Status:</label>
+          <select name="status" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">
+            <option value="">All</option>
+            <option value="success" {% if request.GET.status == 'success' %}selected{% endif %}>Success</option>
+            <option value="failed" {% if request.GET.status == 'failed' %}selected{% endif %}>Failed</option>
+          </select>
+        </div>
+        <div style="flex: 1; min-width: 150px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">From Date:</label>
+          <input type="date" name="from_date" value="{{ request.GET.from_date }}" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">
+        </div>
+        <div style="flex: 1; min-width: 150px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">To Date:</label>
+          <input type="date" name="to_date" value="{{ request.GET.to_date }}" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">
+        </div>
+        <div>
+          <button type="submit" style="padding: 8px 20px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+            Filter
+          </button>
+          <a href="{% url 'sa-authentication-logs' %}" style="display: inline-block; padding: 8px 20px; background: #6c757d; color: white; text-decoration: none; border-radius: 4px; font-weight: 500; margin-left: 5px;">
+            Reset
+          </a>
+        </div>
+      </form>
+    </div>
+    
+    <table style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr style="background: #f2fdf8; border-bottom: 2px solid #ddd;">
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Log ID</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Username</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">User Name</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Role</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Status</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">IP Address</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Timestamp</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if auth_logs %}
+          {% for log in auth_logs %}
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ log.id }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ log.username }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ log.user_name|default:"N/A" }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">
+              <span style="padding: 4px 8px; background: #e3f2fd; color: #1976d2; border-radius: 4px; font-size: 12px;">
+                {{ log.role|default:"N/A" }}
+              </span>
+            </td>
+            <td style="padding: 12px; border: 1px solid #ddd;">
+              <span style="padding: 4px 8px; background: {% if log.status == 'success' %}#d4edda; color: #155724{% else %}#f8d7da; color: #721c24{% endif %}; border-radius: 4px; font-size: 12px; font-weight: 500;">
+                {{ log.status|title }}
+              </span>
+            </td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ log.ip_address|default:"N/A" }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ log.timestamp|date:"M d, Y H:i:s" }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ log.reason|default:"-" }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="8" style="padding: 40px; text-align: center; color: #666; border: 1px solid #ddd;">
+              No authentication logs found
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+    
+    <!-- Summary Stats -->
+    {% if auth_logs %}
+    <div style="margin-top: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+      <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #2e7d32;">{{ total_logs }}</div>
+        <div style="font-size: 13px; color: #666; margin-top: 5px;">Total Attempts</div>
+      </div>
+      <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #2e7d32;">{{ success_count }}</div>
+        <div style="font-size: 13px; color: #666; margin-top: 5px;">Successful Logins</div>
+      </div>
+      <div style="background: #ffebee; padding: 15px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #c62828;">{{ failed_count }}</div>
+        <div style="font-size: 13px; color: #666; margin-top: 5px;">Failed Attempts</div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}

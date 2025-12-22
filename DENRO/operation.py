@@ -24,6 +24,7 @@ def login_user(request):
 
     username = (request.POST.get("username") or "").strip()
     password = request.POST.get("password") or ""
+    ip_address = request.META.get('REMOTE_ADDR', '')
 
     if not username or not password:
         messages.error(request, "Please enter username and password.")
@@ -40,7 +41,16 @@ def login_user(request):
             )
             row = cur.fetchone()
     except DatabaseError as e:
-        # Show detailed DB error only when DEBUG=True, to make troubleshooting easy
+        # Log failed attempt
+        try:
+            with connection.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO authentication_logs (username, status, ip_address, reason) VALUES (%s, %s, %s, %s);",
+                    [username, 'failed', ip_address, 'Database error']
+                )
+        except:
+            pass
+        
         if settings.DEBUG:
             logger.exception("DB error during auth_login()")
             msg = getattr(e, "pgerror", None) or str(e)
@@ -50,6 +60,16 @@ def login_user(request):
         return redirect("login")
 
     if not row:
+        # Log failed attempt
+        try:
+            with connection.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO authentication_logs (username, status, ip_address, reason) VALUES (%s, %s, %s, %s);",
+                    [username, 'failed', ip_address, 'Invalid credentials']
+                )
+        except:
+            pass
+        
         messages.error(request, "Username or password is incorrect.")
         return redirect("login")
 
@@ -63,6 +83,20 @@ def login_user(request):
     request.session["region_id"]  = region_id
     request.session["penro_id"]   = penro_id
     request.session["cenro_id"]   = cenro_id
+    
+    # Log successful login
+    try:
+        with connection.cursor() as cur:
+            cur.execute(
+                "INSERT INTO authentication_logs (username, status, ip_address) VALUES (%s, %s, %s);",
+                [username, 'success', ip_address]
+            )
+            cur.execute(
+                "INSERT INTO activity_logs (task, user_id) VALUES (%s, %s);",
+                ['User logged in', user_id]
+            )
+    except:
+        pass
 
     # Route by role (stored as 'Super Admin','Admin','PENRO','CENRO','Evaluator')
     r = request.session["role"]  # e.g. "super admin","admin","penro","cenro","evaluator"
@@ -297,6 +331,7 @@ def create_account(request):
         # Optional
         phone_number = (request.POST.get("phone_number") or "").strip() or None
         profile_pic  = (request.POST.get("profile_pic") or "").strip() or None
+        user_status  = request.POST.get("user_status") or "active"
 
         # Basic validation
         errors = []
@@ -459,6 +494,10 @@ def create_account(request):
                         ],
                     )
                     new_id = cur.fetchone()[0]
+                    
+                    # Set user status if specified
+                    if user_status == 'pending':
+                        cur.execute("UPDATE users SET status = 'pending' WHERE id = %s;", [new_id])
 
             messages.success(request, f"Account successfully created! User can now log in.")
             return redirect("account-create")  # Stay on page to create more users
@@ -1517,3 +1556,556 @@ def get_user_profile_pic(user_id):
     except DatabaseError as e:
         logger.error(f"Error fetching profile picture: {e}")
         return None
+
+
+# =========================
+# PENDING REGISTRATION FUNCTIONS
+# =========================
+def get_pending_users():
+    """Fetch all pending user registrations."""
+    pending_users = []
+    try:
+        with connection.cursor() as cur:
+            cur.execute("""
+                SELECT u.id, u.username, u.first_name, u.last_name, u.email, u.role,
+                       u.region_id, u.penro_id, u.cenro_id, u.created_at,
+                       COALESCE(r.name, p.name, c.name) as office_name
+                FROM users u
+                LEFT JOIN regions r ON u.region_id = r.id
+                LEFT JOIN penros p ON u.penro_id = p.id
+                LEFT JOIN cenros c ON u.cenro_id = c.id
+                WHERE u.status = 'pending'
+                ORDER BY u.created_at DESC;
+            """)
+            columns = [desc[0] for desc in cur.description]
+            for row in cur.fetchall():
+                user_dict = dict(zip(columns, row))
+                user_dict['user_id'] = user_dict['id']
+                pending_users.append(user_dict)
+    except DatabaseError as e:
+        logger.error(f"Error fetching pending users: {e}")
+    return pending_users
+
+
+def approve_user_registration(user_id):
+    """Approve a pending user registration."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute("""
+                UPDATE users SET status = 'active' WHERE id = %s AND status = 'pending';
+            """, [user_id])
+            if cur.rowcount == 0:
+                return False, "User not found or already processed"
+        return True, "User registration approved successfully"
+    except DatabaseError as e:
+        logger.error(f"Error approving user: {e}")
+        return False, str(e)
+
+
+def reject_user_registration(user_id):
+    """Reject a pending user registration by deleting the user."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute("""
+                DELETE FROM users WHERE id = %s AND status = 'pending';
+            """, [user_id])
+            if cur.rowcount == 0:
+                return False, "User not found or already processed"
+        return True, "User registration rejected successfully"
+    except DatabaseError as e:
+        logger.error(f"Error rejecting user: {e}")
+        return False, str(e)
+
+
+# =========================
+# REGION ADMIN MANAGEMENT FUNCTIONS
+# =========================
+def get_region_admins():
+    """Fetch all region admin users."""
+    admins = []
+    try:
+        with connection.cursor() as cur:
+            cur.execute("""
+                SELECT u.id, u.username, u.first_name, u.last_name, u.email, 
+                       u.region_id, r.name as region_name, u.status
+                FROM users u
+                LEFT JOIN regions r ON u.region_id = r.id
+                WHERE LOWER(TRIM(u.role)) = 'admin'
+                ORDER BY u.created_at DESC;
+            """)
+            columns = [desc[0] for desc in cur.description]
+            for row in cur.fetchall():
+                admin_dict = dict(zip(columns, row))
+                admin_dict['user_id'] = admin_dict['id']
+                admins.append(admin_dict)
+    except DatabaseError as e:
+        logger.error(f"Error fetching region admins: {e}")
+    return admins
+
+
+def update_admin_user(user_id, first_name, last_name, username, email, region_id):
+    """Update admin user information including region assignment."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute("""
+                UPDATE users
+                SET first_name = %s, last_name = %s, username = %s, 
+                    email = %s, region_id = %s
+                WHERE id = %s AND LOWER(role) = 'admin';
+            """, [first_name, last_name, username, email, region_id, user_id])
+            if cur.rowcount == 0:
+                return False, "Admin user not found"
+        return True, "Admin updated successfully"
+    except DatabaseError as e:
+        logger.error(f"Error updating admin user: {e}")
+        return False, str(e)
+
+
+# =========================
+# AUTHENTICATION LOGS FUNCTIONS
+# =========================
+def get_authentication_logs(username='', status='', from_date='', to_date=''):
+    """Fetch authentication logs with optional filters."""
+    logs = []
+    try:
+        with connection.cursor() as cur:
+            query = """
+                SELECT al.id, al.username, al.status, al.ip_address, 
+                       al.timestamp, al.reason,
+                       u.first_name || ' ' || u.last_name as user_name,
+                       u.role
+                FROM authentication_logs al
+                LEFT JOIN users u ON al.username = u.username
+                WHERE 1=1
+            """
+            params = []
+            
+            if username:
+                query += " AND LOWER(al.username) LIKE LOWER(%s)"
+                params.append(f'%{username}%')
+            
+            if status:
+                query += " AND LOWER(al.status) = LOWER(%s)"
+                params.append(status)
+            
+            if from_date:
+                query += " AND DATE(al.timestamp) >= %s"
+                params.append(from_date)
+            
+            if to_date:
+                query += " AND DATE(al.timestamp) <= %s"
+                params.append(to_date)
+            
+            query += " ORDER BY al.timestamp DESC LIMIT 500;"
+            
+            cur.execute(query, params)
+            columns = [desc[0] for desc in cur.description]
+            for row in cur.fetchall():
+                logs.append(dict(zip(columns, row)))
+    except DatabaseError as e:
+        logger.error(f"Error fetching authentication logs: {e}")
+    return logs
+
+
+# =========================
+# FILTERED ACTIVITY LOGS FUNCTION
+# =========================
+def get_filtered_activity_logs(user_name='', task='', from_date='', to_date=''):
+    """Fetch activity logs with optional filters."""
+    logs = []
+    try:
+        with connection.cursor() as cur:
+            query = """
+                SELECT al.id, al.task, al.user_id, al.timestamp,
+                       u.first_name || ' ' || u.last_name as name,
+                       u.role
+                FROM activity_logs al
+                LEFT JOIN users u ON al.user_id = u.id
+                WHERE 1=1
+            """
+            params = []
+            
+            if user_name:
+                query += " AND (LOWER(u.first_name) LIKE LOWER(%s) OR LOWER(u.last_name) LIKE LOWER(%s))"
+                params.extend([f'%{user_name}%', f'%{user_name}%'])
+            
+            if task:
+                query += " AND LOWER(al.task) LIKE LOWER(%s)"
+                params.append(f'%{task}%')
+            
+            if from_date:
+                query += " AND DATE(al.timestamp) >= %s"
+                params.append(from_date)
+            
+            if to_date:
+                query += " AND DATE(al.timestamp) <= %s"
+                params.append(to_date)
+            
+            query += " ORDER BY al.timestamp DESC LIMIT 500;"
+            
+            cur.execute(query, params)
+            columns = [desc[0] for desc in cur.description]
+            for row in cur.fetchall():
+                logs.append(dict(zip(columns, row)))
+    except DatabaseError as e:
+        logger.error(f"Error fetching filtered activity logs: {e}")
+    return logs
+
+
+# =========================
+# ALL USERS WITH FILTERS FUNCTION
+# =========================
+def get_all_users_filtered(search='', role='', status=''):
+    """Fetch all users with optional filters."""
+    users = []
+    try:
+        with connection.cursor() as cur:
+            query = """
+                SELECT u.id, u.username, u.first_name, u.last_name, u.email, u.role,
+                       u.region_id, u.penro_id, u.cenro_id, COALESCE(u.status, \'active\') as status, COALESCE(r.name, p.name, c.name) as office_name
+                FROM users u
+                LEFT JOIN regions r ON u.region_id = r.id
+                LEFT JOIN penros p ON u.penro_id = p.id
+                LEFT JOIN cenros c ON u.cenro_id = c.id
+                WHERE 1=1
+            """
+            params = []
+            
+            if search:
+                query += " AND (LOWER(u.first_name) LIKE LOWER(%s) OR LOWER(u.last_name) LIKE LOWER(%s) OR LOWER(u.username) LIKE LOWER(%s))"
+                params.extend([f'%{search}%', f'%{search}%', f'%{search}%'])
+            
+            if role:
+                query += " AND LOWER(TRIM(u.role)) = LOWER(%s)"
+                params.append(role)
+            
+            if status:
+                query += " AND LOWER(u.status) = LOWER(%s)"
+                params.append(status)
+            
+            query += " ORDER BY u.created_at DESC;"
+            
+            cur.execute(query, params)
+            columns = [desc[0] for desc in cur.description]
+            for row in cur.fetchall():
+                user_dict = dict(zip(columns, row))
+                user_dict['user_id'] = user_dict['id']
+                users.append(user_dict)
+    except DatabaseError as e:
+        logger.error(f"Error fetching filtered users: {e}")
+    return users
+
+
+# =========================
+# BACKEND MANAGEMENT FUNCTIONS
+# =========================
+def get_backend_stats():
+    """Get database statistics."""
+    stats = {'total_users': 0, 'total_reports': 0, 'total_regions': 0, 'total_protected_areas': 0}
+    try:
+        with connection.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM users;")
+            stats['total_users'] = cur.fetchone()[0]
+            
+            cur.execute("SELECT COUNT(*) FROM enumerators_report;")
+            stats['total_reports'] = cur.fetchone()[0]
+            
+            cur.execute("SELECT COUNT(*) FROM regions;")
+            stats['total_regions'] = cur.fetchone()[0]
+            
+            # Protected areas from Supabase
+            result = supabase.table('protected_areas').select('id', count='exact').execute()
+            stats['total_protected_areas'] = result.count if hasattr(result, 'count') else 0
+    except Exception as e:
+        logger.error(f"Error fetching backend stats: {e}")
+    return stats
+
+
+def get_regions_with_counts():
+    """Get all regions with PENRO counts."""
+    regions = []
+    try:
+        with connection.cursor() as cur:
+            cur.execute("""
+                SELECT r.id, r.name, COUNT(p.id) as penro_count
+                FROM regions r
+                LEFT JOIN penros p ON r.id = p.region_id
+                GROUP BY r.id, r.name
+                ORDER BY r.name;
+            """)
+            columns = [desc[0] for desc in cur.description]
+            for row in cur.fetchall():
+                regions.append(dict(zip(columns, row)))
+    except DatabaseError as e:
+        logger.error(f"Error fetching regions: {e}")
+    return regions
+
+
+def get_penros_with_counts():
+    """Get all PENRO offices with CENRO counts."""
+    penros = []
+    try:
+        with connection.cursor() as cur:
+            cur.execute("""
+                SELECT p.id, p.name, r.name as region_name, COUNT(c.id) as cenro_count
+                FROM penros p
+                LEFT JOIN regions r ON p.region_id = r.id
+                LEFT JOIN cenros c ON p.id = c.penro_id
+                GROUP BY p.id, p.name, r.name
+                ORDER BY p.name;
+            """)
+            columns = [desc[0] for desc in cur.description]
+            for row in cur.fetchall():
+                penros.append(dict(zip(columns, row)))
+    except DatabaseError as e:
+        logger.error(f"Error fetching PENRO offices: {e}")
+    return penros
+
+
+def get_cenros_with_penro():
+    """Get all CENRO offices with PENRO names."""
+    cenros = []
+    try:
+        with connection.cursor() as cur:
+            cur.execute("""
+                SELECT c.id, c.name, p.name as penro_name
+                FROM cenros c
+                LEFT JOIN penros p ON c.penro_id = p.id
+                ORDER BY c.name;
+            """)
+            columns = [desc[0] for desc in cur.description]
+            for row in cur.fetchall():
+                cenros.append(dict(zip(columns, row)))
+    except DatabaseError as e:
+        logger.error(f"Error fetching CENRO offices: {e}")
+    return cenros
+
+
+def add_region(region_name):
+    """Add a new region."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute("INSERT INTO regions (name) VALUES (%s);", [region_name])
+        return True, "Region added successfully"
+    except DatabaseError as e:
+        logger.error(f"Error adding region: {e}")
+        return False, str(e)
+
+
+def delete_region(region_id):
+    """Delete a region."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute("DELETE FROM regions WHERE id = %s;", [region_id])
+        return True, "Region deleted successfully"
+    except DatabaseError as e:
+        logger.error(f"Error deleting region: {e}")
+        return False, "Cannot delete region with associated offices"
+
+
+def add_penro(penro_name, region_id):
+    """Add a new PENRO office."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute("INSERT INTO penros (name, region_id) VALUES (%s, %s);", [penro_name, region_id])
+        return True, "PENRO office added successfully"
+    except DatabaseError as e:
+        logger.error(f"Error adding PENRO: {e}")
+        return False, str(e)
+
+
+def delete_penro(penro_id):
+    """Delete a PENRO office."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute("DELETE FROM penros WHERE id = %s;", [penro_id])
+        return True, "PENRO office deleted successfully"
+    except DatabaseError as e:
+        logger.error(f"Error deleting PENRO: {e}")
+        return False, "Cannot delete PENRO with associated CENRO offices"
+
+
+def add_cenro(cenro_name, penro_id):
+    """Add a new CENRO office."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute("INSERT INTO cenros (name, penro_id) VALUES (%s, %s);", [cenro_name, penro_id])
+        return True, "CENRO office added successfully"
+    except DatabaseError as e:
+        logger.error(f"Error adding CENRO: {e}")
+        return False, str(e)
+
+
+def delete_cenro(cenro_id):
+    """Delete a CENRO office."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute("DELETE FROM cenros WHERE id = %s;", [cenro_id])
+        return True, "CENRO office deleted successfully"
+    except DatabaseError as e:
+        logger.error(f"Error deleting CENRO: {e}")
+        return False, "Cannot delete CENRO with associated users"
+
+
+# =========================
+# SUPER ADMIN DASHBOARD STATS
+# =========================
+def get_dashboard_stats():
+    """Get comprehensive statistics for Super Admin dashboard."""
+    stats = {
+        'total_users': 0,
+        'total_regions': 0,
+        'total_penros': 0,
+        'total_cenros': 0,
+        'admin_count': 0,
+        'penro_count': 0,
+        'cenro_count': 0,
+        'evaluator_count': 0,
+        'active_users': 0,
+        'inactive_users': 0,
+        'total_reports': 0,
+        'pending_registrations': 0,
+        'active_sessions': 0,
+        'total_protected_areas': 0
+    }
+    
+    try:
+        with connection.cursor() as cur:
+            # Total users
+            cur.execute("SELECT COUNT(*) FROM users;")
+            stats['total_users'] = cur.fetchone()[0]
+            
+            # Total regions
+            cur.execute("SELECT COUNT(*) FROM regions;")
+            stats['total_regions'] = cur.fetchone()[0]
+            
+            # Total PENRO offices
+            cur.execute("SELECT COUNT(*) FROM penros;")
+            stats['total_penros'] = cur.fetchone()[0]
+            
+            # Total CENRO offices
+            cur.execute("SELECT COUNT(*) FROM cenros;")
+            stats['total_cenros'] = cur.fetchone()[0]
+            
+            # User counts by role
+            cur.execute("SELECT COUNT(*) FROM users WHERE LOWER(role) = 'admin';")
+            stats['admin_count'] = cur.fetchone()[0]
+            
+            cur.execute("SELECT COUNT(*) FROM users WHERE LOWER(role) = 'penro';")
+            stats['penro_count'] = cur.fetchone()[0]
+            
+            cur.execute("SELECT COUNT(*) FROM users WHERE LOWER(role) = 'cenro';")
+            stats['cenro_count'] = cur.fetchone()[0]
+            
+            cur.execute("SELECT COUNT(*) FROM users WHERE LOWER(role) = 'evaluator';")
+            stats['evaluator_count'] = cur.fetchone()[0]
+            
+            # Active vs inactive users
+            cur.execute("SELECT COUNT(*) FROM users WHERE LOWER(status) = 'active' OR status IS NULL;")
+            stats['active_users'] = cur.fetchone()[0]
+            
+            cur.execute("SELECT COUNT(*) FROM users WHERE LOWER(status) = 'inactive';")
+            stats['inactive_users'] = cur.fetchone()[0]
+            
+            # Total reports
+            cur.execute("SELECT COUNT(*) FROM enumerators_report;")
+            stats['total_reports'] = cur.fetchone()[0]
+            
+            # Pending registrations
+            cur.execute("SELECT COUNT(*) FROM users WHERE LOWER(status) = 'pending';")
+            stats['pending_registrations'] = cur.fetchone()[0]
+            
+            # Active sessions (users logged in today)
+            cur.execute("""
+                SELECT COUNT(DISTINCT user_id) 
+                FROM authentication_logs 
+                WHERE DATE(timestamp) = CURRENT_DATE 
+                AND LOWER(status) = 'success';
+            """)
+            stats['active_sessions'] = cur.fetchone()[0] or 0
+            
+        # Protected areas from Supabase
+        try:
+            result = supabase.table('protected_areas').select('id', count='exact').execute()
+            stats['total_protected_areas'] = result.count if hasattr(result, 'count') else 0
+        except Exception:
+            stats['total_protected_areas'] = 0
+            
+    except DatabaseError as e:
+        logger.error(f"Error fetching dashboard stats: {e}")
+    
+    return stats
+
+
+# =========================
+# ESTABLISHMENT TRACKING
+# =========================
+def get_establishment_tracking(tracking_id):
+    """Get establishment details and tracking timeline by tracking ID."""
+    establishment = None
+    timeline = []
+    
+    try:
+        with connection.cursor() as cur:
+            # Fetch establishment details
+            cur.execute("""
+                SELECT 
+                    er.id,
+                    er.establishment_name,
+                    ep.establishment_type,
+                    er.pa_name,
+                    er.proponent_name,
+                    er.report_date,
+                    er.remarks,
+                    'Pending' as status
+                FROM enumerators_report er
+                LEFT JOIN establishment_profile ep ON er.establishment_id = ep.id
+                WHERE er.id::text = %s OR CONCAT('EST-', er.id) = %s
+                LIMIT 1;
+            """, [tracking_id.replace('EST-', ''), tracking_id])
+            
+            row = cur.fetchone()
+            if row:
+                establishment = {
+                    'tracking_id': f'EST-{row[0]}',
+                    'name': row[1],
+                    'type': row[2],
+                    'protected_area': row[3],
+                    'proponent': row[4],
+                    'report_date': row[5],
+                    'remarks': row[6],
+                    'status': row[7]
+                }
+                
+                # Build timeline
+                timeline = [
+                    {
+                        'title': 'Report Submitted',
+                        'description': f'Establishment report submitted for {row[1]}',
+                        'timestamp': row[5],
+                        'user': 'Enumerator'
+                    }
+                ]
+                
+                # Add activity logs related to this establishment
+                cur.execute("""
+                    SELECT al.task, al.timestamp, u.first_name || ' ' || u.last_name as user_name
+                    FROM activity_logs al
+                    LEFT JOIN users u ON al.user_id = u.id
+                    WHERE al.task LIKE %s
+                    ORDER BY al.timestamp DESC
+                    LIMIT 10;
+                """, [f'%{row[1]}%'])
+                
+                for log_row in cur.fetchall():
+                    timeline.append({
+                        'title': log_row[0],
+                        'description': f'Action performed on establishment',
+                        'timestamp': log_row[1],
+                        'user': log_row[2]
+                    })
+                
+    except DatabaseError as e:
+        logger.error(f"Error fetching establishment tracking: {e}")
+    
+    return establishment, timeline

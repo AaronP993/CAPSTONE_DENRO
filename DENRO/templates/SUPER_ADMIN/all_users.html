@@ -1,8 +1,155 @@
-{% extends "base.html" %} 
+{% extends "base.html" %}
+{% load static %}
 
-{% block title %}All Users{% endblock %} 
+{% block title %}All Users{% endblock %}
 
 {% block content %}
-<h1>All Users</h1>
-<p>Content for All Users page.</p>
+{% include 'includes/topnav/topnav_superadmin.html' with page_title="ALL USERS" %}
+<div class="dashboard-container" style="padding: 30px;">
+  <div style="background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+    <h2 style="margin-bottom: 20px; color: #222;">All System Users</h2>
+    
+    {% if messages %}
+      {% for message in messages %}
+        <div style="padding: 12px; margin-bottom: 15px; border-radius: 5px; background: {% if message.tags == 'success' %}#d4edda; color: #155724; border: 1px solid #c3e6cb{% else %}#f8d7da; color: #721c24; border: 1px solid #f5c6cb{% endif %};">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+    
+    <!-- Filter Section -->
+    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+      <form method="get" style="display: flex; gap: 10px; align-items: end; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 200px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Search:</label>
+          <input type="text" name="search" value="{{ request.GET.search }}" placeholder="Name or username" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">
+        </div>
+        <div style="flex: 1; min-width: 150px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Role:</label>
+          <select name="role" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">
+            <option value="">All Roles</option>
+            <option value="Super Admin" {% if request.GET.role == 'Super Admin' %}selected{% endif %}>Super Admin</option>
+            <option value="Admin" {% if request.GET.role == 'Admin' %}selected{% endif %}>Admin</option>
+            <option value="PENRO" {% if request.GET.role == 'PENRO' %}selected{% endif %}>PENRO</option>
+            <option value="CENRO" {% if request.GET.role == 'CENRO' %}selected{% endif %}>CENRO</option>
+            <option value="Evaluator" {% if request.GET.role == 'Evaluator' %}selected{% endif %}>Evaluator</option>
+          </select>
+        </div>
+        <div style="flex: 1; min-width: 150px;">
+          <label style="display: block; margin-bottom: 5px; font-weight: 600; font-size: 13px;">Status:</label>
+          <select name="status" style="width: 100%; padding: 8px; border: 1px solid #ced4da; border-radius: 4px;">
+            <option value="">All Status</option>
+            <option value="active" {% if request.GET.status == 'active' %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if request.GET.status == 'inactive' %}selected{% endif %}>Inactive</option>
+            <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>Pending</option>
+          </select>
+        </div>
+        <div>
+          <button type="submit" style="padding: 8px 20px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 500;">
+            Filter
+          </button>
+          <a href="{% url 'sa-all-users' %}" style="display: inline-block; padding: 8px 20px; background: #6c757d; color: white; text-decoration: none; border-radius: 4px; font-weight: 500; margin-left: 5px;">
+            Reset
+          </a>
+        </div>
+      </form>
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+      <a href="{% url 'account-create' %}" 
+         style="display: inline-block; padding: 10px 20px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px; font-weight: 500;">
+        + Create New User
+      </a>
+    </div>
+    
+    <table style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr style="background: #f2fdf8; border-bottom: 2px solid #ddd;">
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">User ID</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Name</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Username</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Email</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Role</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Office</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Status</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if users %}
+          {% for user in users %}
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ user.user_id }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ user.first_name }} {{ user.last_name }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ user.username }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ user.email|default:"N/A" }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">
+              <span style="padding: 4px 8px; background: #e3f2fd; color: #1976d2; border-radius: 4px; font-size: 12px;">
+                {{ user.role }}
+              </span>
+            </td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ user.office_name|default:"N/A" }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">
+              <span style="padding: 4px 8px; background: {% if user.status == 'active' %}#d4edda; color: #155724{% elif user.status == 'pending' %}#fff3cd; color: #856404{% else %}#f8d7da; color: #721c24{% endif %}; border-radius: 4px; font-size: 12px;">
+                {{ user.status|default:"active"|title }}
+              </span>
+            </td>
+            <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">
+              <button onclick="viewUser({{ user.user_id }})" style="padding: 6px 12px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; margin: 0 3px;">
+                👁 View
+              </button>
+              <form method="post" style="display: inline-block; margin: 0 3px;" onsubmit="return confirm('Delete this user?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="user_id" value="{{ user.user_id }}">
+                <button type="submit" style="padding: 6px 12px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                  ✕ Delete
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="8" style="padding: 40px; text-align: center; color: #666; border: 1px solid #ddd;">
+              No users found
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+    
+    <!-- Summary Stats -->
+    {% if users %}
+    <div style="margin-top: 20px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px;">
+      <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #1976d2;">{{ total_users }}</div>
+        <div style="font-size: 13px; color: #666; margin-top: 5px;">Total Users</div>
+      </div>
+      <div style="background: #f3e5f5; padding: 15px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #7b1fa2;">{{ admin_count }}</div>
+        <div style="font-size: 13px; color: #666; margin-top: 5px;">Admins</div>
+      </div>
+      <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #2e7d32;">{{ penro_count }}</div>
+        <div style="font-size: 13px; color: #666; margin-top: 5px;">PENRO</div>
+      </div>
+      <div style="background: #fff3e0; padding: 15px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #e65100;">{{ cenro_count }}</div>
+        <div style="font-size: 13px; color: #666; margin-top: 5px;">CENRO</div>
+      </div>
+      <div style="background: #fce4ec; padding: 15px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 24px; font-weight: bold; color: #c2185b;">{{ evaluator_count }}</div>
+        <div style="font-size: 13px; color: #666; margin-top: 5px;">Evaluators</div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+function viewUser(userId) {
+  alert('View user details for User ID: ' + userId + '\n\nThis feature can be implemented to show detailed user information.');
+}
+</script>
 {% endblock %}

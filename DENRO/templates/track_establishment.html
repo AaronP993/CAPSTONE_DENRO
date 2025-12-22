@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Track Establishment{% endblock %}
+
+{% block content %}
+{% include 'includes/topnav/topnav_admin.html' with page_title="TRACK ESTABLISHMENT" %}
+<div class="dashboard-container" style="padding: 30px;">
+  
+  <!-- Search Box -->
+  <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); margin-bottom: 30px;">
+    <h2 style="margin-bottom: 20px; color: #222;">Track Establishment</h2>
+    <form method="get" style="display: flex; gap: 10px;">
+      <input 
+        type="text" 
+        name="tracking_id" 
+        placeholder="Enter Tracking ID (e.g., EST-2024-001)" 
+        value="{{ tracking_id }}"
+        required
+        style="flex: 1; padding: 12px 20px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 15px;"
+      >
+      <button 
+        type="submit" 
+        style="padding: 12px 40px; background: #4CAF50; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;"
+      >
+        Track
+      </button>
+    </form>
+  </div>
+
+  {% if error %}
+  <!-- Error Message -->
+  <div style="background: #fff3cd; border: 1px solid #ffc107; color: #856404; padding: 20px; border-radius: 10px; margin-bottom: 30px; text-align: center;">
+    <strong>⚠️ {{ error }}</strong>
+  </div>
+  {% endif %}
+
+  {% if establishment %}
+  <!-- Tracking Result -->
+  <div style="background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+    
+    <!-- Establishment Info -->
+    <div style="border-bottom: 2px solid #f0f0f0; padding-bottom: 20px; margin-bottom: 30px;">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+        <div>
+          <h2 style="margin: 0 0 10px 0; color: #333; font-size: 24px;">{{ establishment.name }}</h2>
+          <p style="margin: 0; color: #666; font-size: 14px;">Tracking ID: <strong>{{ establishment.tracking_id }}</strong></p>
+        </div>
+        <div style="padding: 8px 16px; background: {% if establishment.status == 'Approved' %}#d4edda{% elif establishment.status == 'Pending' %}#fff3cd{% elif establishment.status == 'Rejected' %}#f8d7da{% else %}#e3f2fd{% endif %}; color: {% if establishment.status == 'Approved' %}#155724{% elif establishment.status == 'Pending' %}#856404{% elif establishment.status == 'Rejected' %}#721c24{% else %}#004085{% endif %}; border-radius: 20px; font-weight: 600; font-size: 14px;">
+          {{ establishment.status }}
+        </div>
+      </div>
+      
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px;">
+        <div>
+          <p style="margin: 0; color: #999; font-size: 12px;">Type</p>
+          <p style="margin: 5px 0 0 0; color: #333; font-weight: 500;">{{ establishment.type|default:"N/A" }}</p>
+        </div>
+        <div>
+          <p style="margin: 0; color: #999; font-size: 12px;">Protected Area</p>
+          <p style="margin: 5px 0 0 0; color: #333; font-weight: 500;">{{ establishment.protected_area|default:"N/A" }}</p>
+        </div>
+        <div>
+          <p style="margin: 0; color: #999; font-size: 12px;">Proponent</p>
+          <p style="margin: 5px 0 0 0; color: #333; font-weight: 500;">{{ establishment.proponent|default:"N/A" }}</p>
+        </div>
+        <div>
+          <p style="margin: 0; color: #999; font-size: 12px;">Report Date</p>
+          <p style="margin: 5px 0 0 0; color: #333; font-weight: 500;">{{ establishment.report_date|date:"M d, Y" }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <h3 style="margin: 0 0 20px 0; color: #333; font-size: 18px;">Tracking History</h3>
+    <div style="position: relative; padding-left: 40px;">
+      {% for event in timeline %}
+      <div style="position: relative; padding-bottom: 30px;">
+        <div style="position: absolute; left: -40px; width: 16px; height: 16px; background: {% if forloop.first %}#4CAF50{% else %}#e0e0e0{% endif %}; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 0 2px {% if forloop.first %}#4CAF50{% else %}#e0e0e0{% endif %};"></div>
+        {% if not forloop.last %}
+        <div style="position: absolute; left: -33px; top: 16px; width: 2px; height: calc(100% - 16px); background: #e0e0e0;"></div>
+        {% endif %}
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 3px solid {% if forloop.first %}#4CAF50{% else %}#e0e0e0{% endif %};">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 5px;">
+            <strong style="color: #333; font-size: 15px;">{{ event.title }}</strong>
+            <span style="color: #999; font-size: 12px;">{{ event.timestamp|date:"M d, Y H:i" }}</span>
+          </div>
+          <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">{{ event.description }}</p>
+          {% if event.user %}
+          <p style="margin: 5px 0 0 0; color: #999; font-size: 12px;">By: {{ event.user }}</p>
+          {% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <p style="color: #999; text-align: center; padding: 20px;">No tracking history available</p>
+      {% endfor %}
+    </div>
+
+    {% if establishment.remarks %}
+    <div style="margin-top: 30px; padding: 20px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 8px;">
+      <strong style="color: #856404; font-size: 14px;">Remarks:</strong>
+      <p style="margin: 10px 0 0 0; color: #856404; font-size: 14px;">{{ establishment.remarks }}</p>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

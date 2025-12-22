@@ -8,6 +8,7 @@ urlpatterns = [
 
     # Auth
     path('login/', views.login_view, name='login'),
+    path('track/', views.track_establishment_view, name='track-establishment'),
     path('logout/', operation.logout_user, name='logout'),
 
     # Registration - Updated to use the decorated view
@@ -29,11 +30,13 @@ urlpatterns = [
     path('sa/authentication-logs/', views.sa_authentication_logs, name='sa-authentication-logs'),
     path('sa/activity-logs/', views.sa_activity_logs, name='sa-activity-logs'),
     path('sa/all-users/', views.sa_all_users, name='sa-all-users'),
+    path('sa/backend/', views.sa_backend_management, name='sa-backend'),
     path('sa/profile/', views.sa_profile, name='sa-profile'),
 
     # CENRO subpages
     path('cenro/activity-logs/', views.cenro_activitylogs, name='CENRO-activitylogs'),
     path('cenro/reports/',       views.cenro_reports,      name='CENRO-reports'),
+    path('cenro/user-management/', views.cenro_usermanagement, name='CENRO-usermanagement'),
     path('cenro/profile/',       views.cenro_profile,      name='cenro-profile'),
     
     # PENRO subpages

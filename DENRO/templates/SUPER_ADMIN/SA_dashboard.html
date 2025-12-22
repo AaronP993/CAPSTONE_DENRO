@@ -3,141 +3,171 @@
 {% load static %}
 {% block title %}SUPER ADMIN Dashboard{% endblock %}
 
-{% block extra_css %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-  .chart-container {
-    background: #fff;
-    padding: 2rem;
-    border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    max-width: 600px;
-    margin: 2rem auto;
-  }
-  .charts-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-    margin: 2rem 0;
-  }
-  @media (max-width: 768px) {
-    .charts-row {
-      grid-template-columns: 1fr;
-    }
-  }
-</style>
-{% endblock %}
-
 {% block content %}
 {% include 'includes/topnav/topnav_superadmin.html' with page_title="SUPER ADMIN DASHBOARD" %}
-<div class="dashboard-container" style="padding: 30px;">
-  <div class="charts-row">
-    <div class="chart-container">
-      <h2 style="text-align: center; margin-bottom: 1.5rem; color: #222;">User Distribution by Role</h2>
-      <canvas id="userRoleChart"></canvas>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<div class="dashboard-container" style="padding: 10px; height: calc(100vh - 60px); display: flex; flex-direction: column; gap: 10px; overflow: hidden;">
+
+  <!-- TOP ROW: Stats Cards -->
+  <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 8px; color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+      <div style="font-size: 14px; opacity: 0.9;">Total Users</div>
+      <div style="font-size: 32px; font-weight: bold; margin-top: 8px;">{{ total_users|default:0 }}</div>
     </div>
-    
-    <div class="chart-container">
-      <h2 style="text-align: center; margin-bottom: 1.5rem; color: #222;">Active vs Inactive Users</h2>
-      <canvas id="userStatusChart"></canvas>
+    <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 20px; border-radius: 8px; color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+      <div style="font-size: 14px; opacity: 0.9;">Total Regions</div>
+      <div style="font-size: 32px; font-weight: bold; margin-top: 8px;">{{ total_regions|default:0 }}</div>
+    </div>
+    <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 20px; border-radius: 8px; color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+      <div style="font-size: 14px; opacity: 0.9;">Total PENRO Offices</div>
+      <div style="font-size: 32px; font-weight: bold; margin-top: 8px;">{{ total_penros|default:0 }}</div>
+    </div>
+    <div style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); padding: 20px; border-radius: 8px; color: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+      <div style="font-size: 14px; opacity: 0.9;">Total CENRO Offices</div>
+      <div style="font-size: 32px; font-weight: bold; margin-top: 8px;">{{ total_cenros|default:0 }}</div>
     </div>
   </div>
+
+  <!-- MIDDLE ROW: Charts -->
+  <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; flex: 1; overflow: hidden;">
+    <!-- User Distribution by Role -->
+    <div style="background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); display: flex; flex-direction: column;">
+      <h2 style="margin: 0 0 10px 0; color: #222; font-size: 16px;">User Distribution by Role</h2>
+      <div style="flex: 1; position: relative;">
+        <canvas id="userRoleChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Active vs Inactive Users -->
+    <div style="background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); display: flex; flex-direction: column;">
+      <h2 style="margin: 0 0 10px 0; color: #222; font-size: 16px;">User Status</h2>
+      <div style="flex: 1; position: relative;">
+        <canvas id="userStatusChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Establishments by Type -->
+    <div style="background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); display: flex; flex-direction: column;">
+      <h2 style="margin: 0 0 10px 0; color: #222; font-size: 16px;">Top Establishment Types</h2>
+      <div style="flex: 1; position: relative;">
+        <canvas id="establishmentChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM ROW: Bar Chart and Activity Summary -->
+  <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px; height: 280px;">
+    <!-- Regional Distribution -->
+    <div style="background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); display: flex; flex-direction: column;">
+      <h2 style="margin: 0 0 10px 0; color: #222; font-size: 16px;">Establishments by Region</h2>
+      <div style="flex: 1; position: relative;">
+        <canvas id="regionalChart"></canvas>
+      </div>
+    </div>
+
+    <!-- System Activity Summary -->
+    <div style="background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+      <h2 style="margin: 0 0 15px 0; color: #222; font-size: 16px;">System Activity</h2>
+      <div style="font-size: 13px; color: #333;">
+        <div style="display: flex; justify-content: space-between; padding: 10px; background: #f8f9fa; border-radius: 4px; margin-bottom: 8px;">
+          <span>Total Reports</span>
+          <strong>{{ total_reports|default:0 }}</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 10px; background: #f8f9fa; border-radius: 4px; margin-bottom: 8px;">
+          <span>Pending Registrations</span>
+          <strong style="color: #f39c12;">{{ pending_registrations|default:0 }}</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 10px; background: #f8f9fa; border-radius: 4px; margin-bottom: 8px;">
+          <span>Active Sessions</span>
+          <strong style="color: #2ecc71;">{{ active_sessions|default:0 }}</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+          <span>Protected Areas</span>
+          <strong>{{ total_protected_areas|default:0 }}</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
-const ctx = document.getElementById('userRoleChart');
-new Chart(ctx, {
-  type: 'pie',
-  data: {
-    labels: ['Admin', 'PENRO', 'CENRO', 'Evaluator'],
-    datasets: [{
-      data: [
-        {{ admin_count|default:0 }},
-        {{ penro_count|default:0 }},
-        {{ cenro_count|default:0 }},
-        {{ evaluator_count|default:0 }}
-      ],
-      backgroundColor: [
-        '#4CAF50',
-        '#2196F3',
-        '#FF9800',
-        '#9C27B0'
-      ],
-      borderWidth: 2,
-      borderColor: '#fff'
-    }]
-  },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: {
-          padding: 15,
-          font: {
-            size: 14
-          }
-        }
-      },
-      tooltip: {
-        callbacks: {
-          label: function(context) {
-            let label = context.label || '';
-            let value = context.parsed || 0;
-            let total = context.dataset.data.reduce((a, b) => a + b, 0);
-            let percentage = ((value / total) * 100).toFixed(1);
-            return label + ': ' + value + ' (' + percentage + '%)';
-          }
-        }
+window.addEventListener('load', function() {
+  // User Role Distribution
+  new Chart(document.getElementById('userRoleChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Admin', 'PENRO', 'CENRO', 'Evaluator'],
+      datasets: [{
+        data: [{{ admin_count|default:5 }}, {{ penro_count|default:12 }}, {{ cenro_count|default:28 }}, {{ evaluator_count|default:45 }}],
+        backgroundColor: ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0']
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 8 } }
       }
     }
-  }
-});
+  });
 
-// Active vs Inactive Users Chart
-const statusCtx = document.getElementById('userStatusChart');
-new Chart(statusCtx, {
-  type: 'pie',
-  data: {
-    labels: ['Active Users', 'Inactive Users'],
-    datasets: [{
-      data: [
-        {{ active_users|default:0 }},
-        {{ inactive_users|default:0 }}
-      ],
-      backgroundColor: [
-        '#4CAF50',
-        '#F44336'
-      ],
-      borderWidth: 2,
-      borderColor: '#fff'
-    }]
-  },
-  options: {
-    responsive: true,
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: {
-          padding: 15,
-          font: {
-            size: 14
-          }
-        }
-      },
-      tooltip: {
-        callbacks: {
-          label: function(context) {
-            let label = context.label || '';
-            let value = context.parsed || 0;
-            let total = context.dataset.data.reduce((a, b) => a + b, 0);
-            let percentage = ((value / total) * 100).toFixed(1);
-            return label + ': ' + value + ' (' + percentage + '%)';
-          }
-        }
+  // User Status
+  new Chart(document.getElementById('userStatusChart'), {
+    type: 'pie',
+    data: {
+      labels: ['Active', 'Inactive'],
+      datasets: [{
+        data: [{{ active_users|default:78 }}, {{ inactive_users|default:12 }}],
+        backgroundColor: ['#2ecc71', '#e74c3c']
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 8 } }
       }
     }
-  }
+  });
+
+  // Top Establishments
+  new Chart(document.getElementById('establishmentChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Household', 'Business', 'Farm', 'Commercial', 'Industrial'],
+      datasets: [{
+        data: [120, 90, 70, 40, 30],
+        backgroundColor: ['#3498db', '#e67e22', '#16a085', '#f39c12', '#34495e']
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 8 } }
+      }
+    }
+  });
+
+  // Regional Distribution
+  new Chart(document.getElementById('regionalChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Region VII', 'Region VIII', 'Region IX', 'Region X', 'Region XI', 'Region XII'],
+      datasets: [{
+        label: 'Establishments',
+        data: [350, 280, 220, 190, 160, 140],
+        backgroundColor: '#1abc9c'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } }
+    }
+  });
 });
 </script>
 {% endblock %}

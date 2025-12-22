@@ -24,6 +24,26 @@ def login_view(request):
         return login_user(request)  # DB-backed login
     return render(request, "LogIn.html")
 
+@login_required
+def track_establishment_view(request):
+    tracking_id = request.GET.get('tracking_id', '').strip()
+    establishment = None
+    timeline = []
+    error = None
+    
+    if tracking_id:
+        from .operation import get_establishment_tracking
+        establishment, timeline = get_establishment_tracking(tracking_id)
+        if not establishment:
+            error = "Establishment not found. Please check your tracking ID."
+    
+    return render(request, 'track_establishment.html', {
+        'tracking_id': tracking_id,
+        'establishment': establishment,
+        'timeline': timeline,
+        'error': error
+    })
+
 # Add the decorator to create_account view
 @can_create_users
 def create_account_view(request):
@@ -32,37 +52,275 @@ def create_account_view(request):
 @login_required
 @role_required(['Super Admin'])
 def superadmin_dashboard(request):
-    return render(request, 'SUPER_ADMIN/SA_dashboard.html')
+    from .operation import get_dashboard_stats
+    stats = get_dashboard_stats()
+    return render(request, 'SUPER_ADMIN/SA_dashboard.html', stats)
 
 @login_required
 @role_required(['Super Admin'])
 def sa_region_admin_management(request):
-    return render(request, 'SUPER_ADMIN/region_admin_management.html')
+    if request.method == 'POST':
+        from .operation import update_admin_user, delete_user
+        action = request.POST.get('action')
+        user_id = request.POST.get('user_id')
+        
+        if action == 'update':
+            first_name = request.POST.get('first_name')
+            last_name = request.POST.get('last_name')
+            username = request.POST.get('username')
+            email = request.POST.get('email')
+            region_id = request.POST.get('region_id')
+            
+            success, message = update_admin_user(user_id, first_name, last_name, username, email, region_id)
+            if success:
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+        elif action == 'delete':
+            success, message = delete_user(user_id)
+            if success:
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+        
+        return redirect('sa-region-admin-management')
+    
+    from .operation import get_region_admins, _fetch_regions
+    admins = get_region_admins()
+    regions = _fetch_regions()
+    return render(request, 'SUPER_ADMIN/region_admin_management.html', {'admins': admins, 'regions': regions})
 
 @login_required
 @role_required(['Super Admin'])
 def sa_pending_registration(request):
-    return render(request, 'SUPER_ADMIN/pending_registration.html')
+    if request.method == 'POST':
+        from .operation import approve_user_registration, reject_user_registration
+        action = request.POST.get('action')
+        user_id = request.POST.get('user_id')
+        
+        if action == 'approve':
+            success, message = approve_user_registration(user_id)
+            if success:
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+        elif action == 'reject':
+            success, message = reject_user_registration(user_id)
+            if success:
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+        
+        return redirect('sa-pending-registration')
+    
+    from .operation import get_pending_users
+    pending_users = get_pending_users()
+    return render(request, 'SUPER_ADMIN/pending_registration.html', {'pending_users': pending_users})
 
 @login_required
 @role_required(['Super Admin'])
 def sa_authentication_logs(request):
-    return render(request, 'SUPER_ADMIN/authentication_logs.html')
+    from .operation import get_authentication_logs
+    
+    # Get filter parameters
+    username = request.GET.get('username', '')
+    status = request.GET.get('status', '')
+    from_date = request.GET.get('from_date', '')
+    to_date = request.GET.get('to_date', '')
+    
+    # Fetch logs with filters
+    auth_logs = get_authentication_logs(username, status, from_date, to_date)
+    
+    # Calculate statistics
+    total_logs = len(auth_logs)
+    success_count = sum(1 for log in auth_logs if log.get('status') == 'success')
+    failed_count = sum(1 for log in auth_logs if log.get('status') == 'failed')
+    
+    context = {
+        'auth_logs': auth_logs,
+        'total_logs': total_logs,
+        'success_count': success_count,
+        'failed_count': failed_count
+    }
+    return render(request, 'SUPER_ADMIN/authentication_logs.html', context)
 
 @login_required
 @role_required(['Super Admin'])
 def sa_activity_logs(request):
-    return render(request, 'SUPER_ADMIN/activity_logs.html')
+    from .operation import get_filtered_activity_logs
+    
+    # Get filter parameters
+    user_name = request.GET.get('user_name', '')
+    task = request.GET.get('task', '')
+    from_date = request.GET.get('from_date', '')
+    to_date = request.GET.get('to_date', '')
+    
+    # Fetch logs with filters
+    activity_logs = get_filtered_activity_logs(user_name, task, from_date, to_date)
+    
+    context = {
+        'activity_logs': activity_logs,
+        'total_logs': len(activity_logs)
+    }
+    return render(request, 'SUPER_ADMIN/activity_logs.html', context)
 
 @login_required
 @role_required(['Super Admin'])
 def sa_all_users(request):
-    return render(request, 'SUPER_ADMIN/all_users.html')
+    if request.method == 'POST':
+        from .operation import delete_user
+        action = request.POST.get('action')
+        user_id = request.POST.get('user_id')
+        
+        if action == 'delete':
+            success, message = delete_user(user_id)
+            if success:
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+        
+        return redirect('sa-all-users')
+    
+    from .operation import get_all_users_filtered
+    
+    # Get filter parameters
+    search = request.GET.get('search', '')
+    role = request.GET.get('role', '')
+    status = request.GET.get('status', '')
+    
+    # Fetch users with filters
+    users = get_all_users_filtered(search, role, status)
+    
+    # Calculate statistics
+    total_users = len(users)
+    admin_count = sum(1 for u in users if u.get('role', '').lower() == 'admin')
+    penro_count = sum(1 for u in users if u.get('role', '').lower() == 'penro')
+    cenro_count = sum(1 for u in users if u.get('role', '').lower() == 'cenro')
+    evaluator_count = sum(1 for u in users if u.get('role', '').lower() == 'evaluator')
+    
+    context = {
+        'users': users,
+        'total_users': total_users,
+        'admin_count': admin_count,
+        'penro_count': penro_count,
+        'cenro_count': cenro_count,
+        'evaluator_count': evaluator_count
+    }
+    return render(request, 'SUPER_ADMIN/all_users.html', context)
+
+@login_required
+@role_required(['Super Admin'])
+def sa_backend_management(request):
+    if request.method == 'POST':
+        from .operation import add_region, add_penro, add_cenro, delete_region, delete_penro, delete_cenro
+        action = request.POST.get('action')
+        
+        if action == 'add_region':
+            region_name = request.POST.get('region_name')
+            success, message = add_region(region_name)
+            if success:
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+        elif action == 'delete_region':
+            region_id = request.POST.get('region_id')
+            success, message = delete_region(region_id)
+            if success:
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+        elif action == 'add_penro':
+            penro_name = request.POST.get('penro_name')
+            region_id = request.POST.get('region_id')
+            success, message = add_penro(penro_name, region_id)
+            if success:
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+        elif action == 'delete_penro':
+            penro_id = request.POST.get('penro_id')
+            success, message = delete_penro(penro_id)
+            if success:
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+        elif action == 'add_cenro':
+            cenro_name = request.POST.get('cenro_name')
+            penro_id = request.POST.get('penro_id')
+            success, message = add_cenro(cenro_name, penro_id)
+            if success:
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+        elif action == 'delete_cenro':
+            cenro_id = request.POST.get('cenro_id')
+            success, message = delete_cenro(cenro_id)
+            if success:
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+        
+        return redirect('sa-backend')
+    
+    from .operation import get_backend_stats, get_regions_with_counts, get_penros_with_counts, get_cenros_with_penro
+    db_stats = get_backend_stats()
+    regions = get_regions_with_counts()
+    penros = get_penros_with_counts()
+    cenros = get_cenros_with_penro()
+    
+    context = {
+        'db_stats': db_stats,
+        'regions': regions,
+        'penros': penros,
+        'cenros': cenros
+    }
+    return render(request, 'SUPER_ADMIN/backend_management.html', context)
 
 @login_required
 @role_required(['Super Admin'])
 def sa_profile(request):
-    return render(request, 'SUPER_ADMIN/profile.html')
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'update_profile':
+            from .operation import update_user_profile_with_phone_and_pic
+            user_id = request.session.get('user_id')
+            first_name = request.POST.get('first_name')
+            last_name = request.POST.get('last_name')
+            phone_number = request.POST.get('phone_number')
+            profile_pic = request.FILES.get('profile_pic')
+            
+            success, message = update_user_profile_with_phone_and_pic(user_id, first_name, last_name, phone_number, profile_pic)
+            if success:
+                request.session['first_name'] = first_name
+                request.session['last_name'] = last_name
+                messages.success(request, message)
+            else:
+                messages.error(request, message)
+        
+        elif action == 'change_password':
+            from .operation import change_user_password
+            user_id = request.session.get('user_id')
+            current_password = request.POST.get('current_password')
+            new_password = request.POST.get('new_password')
+            confirm_password = request.POST.get('confirm_password')
+            
+            if new_password != confirm_password:
+                messages.error(request, 'New passwords do not match')
+            else:
+                success, message = change_user_password(user_id, current_password, new_password)
+                if success:
+                    messages.success(request, message)
+                else:
+                    messages.error(request, message)
+        
+        return redirect('sa-profile')
+    
+    from .operation import get_user_phone, get_user_profile_pic
+    user_id = request.session.get('user_id')
+    phone_number = get_user_phone(user_id)
+    profile_pic_url = get_user_profile_pic(user_id)
+    return render(request, 'SUPER_ADMIN/profile.html', {'phone_number': phone_number, 'profile_pic_url': profile_pic_url})
 
 @login_required
 @role_required(['Admin'])
@@ -263,6 +521,11 @@ def cenro_profile(request):
 @role_required(['CENRO'])
 def cenro_activitylogs(request):
     return render(request, 'CENRO/CENRO_activitylogs.html')
+
+@login_required
+@role_required(['CENRO'])
+def cenro_usermanagement(request):
+    return render(request, 'CENRO/CENRO_usermanagement.html')
 
 @login_required
 @role_required(['CENRO'])

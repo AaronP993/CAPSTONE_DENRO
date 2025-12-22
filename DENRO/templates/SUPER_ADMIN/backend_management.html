@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Backend Management{% endblock %}
+
+{% block content %}
+{% include 'includes/topnav/topnav_superadmin.html' with page_title="BACKEND MANAGEMENT" %}
+<div class="dashboard-container" style="padding: 30px;">
+  
+  {% if messages %}
+    {% for message in messages %}
+      <div style="padding: 12px; margin-bottom: 15px; border-radius: 5px; background: {% if message.tags == 'success' %}#d4edda; color: #155724; border: 1px solid #c3e6cb{% else %}#f8d7da; color: #721c24; border: 1px solid #f5c6cb{% endif %};">
+        {{ message }}
+      </div>
+    {% endfor %}
+  {% endif %}
+
+  <!-- Database Statistics -->
+  <div style="background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); margin-bottom: 20px;">
+    <h2 style="margin-bottom: 20px; color: #222;">Database Statistics</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px;">
+      <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 32px; font-weight: bold; color: #1976d2;">{{ db_stats.total_users }}</div>
+        <div style="font-size: 14px; color: #666; margin-top: 5px;">Total Users</div>
+      </div>
+      <div style="background: #f3e5f5; padding: 20px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 32px; font-weight: bold; color: #7b1fa2;">{{ db_stats.total_reports }}</div>
+        <div style="font-size: 14px; color: #666; margin-top: 5px;">Total Reports</div>
+      </div>
+      <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 32px; font-weight: bold; color: #2e7d32;">{{ db_stats.total_regions }}</div>
+        <div style="font-size: 14px; color: #666; margin-top: 5px;">Regions</div>
+      </div>
+      <div style="background: #fff3e0; padding: 20px; border-radius: 8px; text-align: center;">
+        <div style="font-size: 32px; font-weight: bold; color: #e65100;">{{ db_stats.total_protected_areas }}</div>
+        <div style="font-size: 14px; color: #666; margin-top: 5px;">Protected Areas</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Region Management -->
+  <div style="background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); margin-bottom: 20px;">
+    <h2 style="margin-bottom: 20px; color: #222;">Region Management</h2>
+    <button onclick="openAddRegionModal()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 500; margin-bottom: 15px;">
+      + Add Region
+    </button>
+    <table style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr style="background: #f2fdf8; border-bottom: 2px solid #ddd;">
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">ID</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Region Name</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">PENRO Offices</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if regions %}
+          {% for region in regions %}
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ region.id }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ region.name }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ region.penro_count }}</td>
+            <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">
+              <button onclick="editRegion({{ region.id }}, '{{ region.name }}')" style="padding: 6px 12px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; margin: 0 3px;">
+                ✎ Edit
+              </button>
+              <form method="post" style="display: inline-block; margin: 0 3px;" onsubmit="return confirm('Delete this region?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete_region">
+                <input type="hidden" name="region_id" value="{{ region.id }}">
+                <button type="submit" style="padding: 6px 12px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                  ✕ Delete
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="4" style="padding: 40px; text-align: center; color: #666; border: 1px solid #ddd;">No regions found</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- PENRO Management -->
+  <div style="background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); margin-bottom: 20px;">
+    <h2 style="margin-bottom: 20px; color: #222;">PENRO Office Management</h2>
+    <button onclick="openAddPenroModal()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 500; margin-bottom: 15px;">
+      + Add PENRO Office
+    </button>
+    <table style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr style="background: #f2fdf8; border-bottom: 2px solid #ddd;">
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">ID</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">PENRO Name</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Region</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">CENRO Offices</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if penros %}
+          {% for penro in penros %}
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ penro.id }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ penro.name }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ penro.region_name }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ penro.cenro_count }}</td>
+            <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">
+              <form method="post" style="display: inline-block;" onsubmit="return confirm('Delete this PENRO office?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete_penro">
+                <input type="hidden" name="penro_id" value="{{ penro.id }}">
+                <button type="submit" style="padding: 6px 12px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                  ✕ Delete
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="5" style="padding: 40px; text-align: center; color: #666; border: 1px solid #ddd;">No PENRO offices found</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- CENRO Management -->
+  <div style="background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
+    <h2 style="margin-bottom: 20px; color: #222;">CENRO Office Management</h2>
+    <button onclick="openAddCenroModal()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: 500; margin-bottom: 15px;">
+      + Add CENRO Office
+    </button>
+    <table style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr style="background: #f2fdf8; border-bottom: 2px solid #ddd;">
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">ID</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">CENRO Name</th>
+          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">PENRO</th>
+          <th style="padding: 12px; text-align: center; border: 1px solid #ddd;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if cenros %}
+          {% for cenro in cenros %}
+          <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ cenro.id }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ cenro.name }}</td>
+            <td style="padding: 12px; border: 1px solid #ddd;">{{ cenro.penro_name }}</td>
+            <td style="padding: 12px; text-align: center; border: 1px solid #ddd;">
+              <form method="post" style="display: inline-block;" onsubmit="return confirm('Delete this CENRO office?');">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete_cenro">
+                <input type="hidden" name="cenro_id" value="{{ cenro.id }}">
+                <button type="submit" style="padding: 6px 12px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                  ✕ Delete
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="4" style="padding: 40px; text-align: center; color: #666; border: 1px solid #ddd;">No CENRO offices found</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- Add Region Modal -->
+<div id="addRegionModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+  <div style="background-color: #fff; margin: 10% auto; padding: 2rem; border-radius: 10px; width: 90%; max-width: 500px;">
+    <span onclick="closeAddRegionModal()" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+    <h2 style="margin-bottom: 1.5rem;">Add Region</h2>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="add_region">
+      <div style="margin-bottom: 1rem;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Region Name:</label>
+        <input type="text" name="region_name" required style="width: 100%; padding: 0.75rem; border: 1px solid #ced4da; border-radius: 6px;">
+      </div>
+      <div style="text-align: center;">
+        <button type="submit" style="padding: 0.75rem 2rem; background: #4CAF50; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer;">
+          Add Region
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add PENRO Modal -->
+<div id="addPenroModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+  <div style="background-color: #fff; margin: 10% auto; padding: 2rem; border-radius: 10px; width: 90%; max-width: 500px;">
+    <span onclick="closeAddPenroModal()" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+    <h2 style="margin-bottom: 1.5rem;">Add PENRO Office</h2>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="add_penro">
+      <div style="margin-bottom: 1rem;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">PENRO Name:</label>
+        <input type="text" name="penro_name" required style="width: 100%; padding: 0.75rem; border: 1px solid #ced4da; border-radius: 6px;">
+      </div>
+      <div style="margin-bottom: 1.5rem;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Region:</label>
+        <select name="region_id" required style="width: 100%; padding: 0.75rem; border: 1px solid #ced4da; border-radius: 6px;">
+          <option value="">Select Region</option>
+          {% for region in regions %}
+            <option value="{{ region.id }}">{{ region.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="text-align: center;">
+        <button type="submit" style="padding: 0.75rem 2rem; background: #4CAF50; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer;">
+          Add PENRO
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Add CENRO Modal -->
+<div id="addCenroModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5);">
+  <div style="background-color: #fff; margin: 10% auto; padding: 2rem; border-radius: 10px; width: 90%; max-width: 500px;">
+    <span onclick="closeAddCenroModal()" style="color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer;">&times;</span>
+    <h2 style="margin-bottom: 1.5rem;">Add CENRO Office</h2>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="add_cenro">
+      <div style="margin-bottom: 1rem;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">CENRO Name:</label>
+        <input type="text" name="cenro_name" required style="width: 100%; padding: 0.75rem; border: 1px solid #ced4da; border-radius: 6px;">
+      </div>
+      <div style="margin-bottom: 1.5rem;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">PENRO Office:</label>
+        <select name="penro_id" required style="width: 100%; padding: 0.75rem; border: 1px solid #ced4da; border-radius: 6px;">
+          <option value="">Select PENRO</option>
+          {% for penro in penros %}
+            <option value="{{ penro.id }}">{{ penro.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div style="text-align: center;">
+        <button type="submit" style="padding: 0.75rem 2rem; background: #4CAF50; color: white; border: none; border-radius: 6px; font-size: 1rem; cursor: pointer;">
+          Add CENRO
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function openAddRegionModal() { document.getElementById('addRegionModal').style.display = 'block'; }
+function closeAddRegionModal() { document.getElementById('addRegionModal').style.display = 'none'; }
+function openAddPenroModal() { document.getElementById('addPenroModal').style.display = 'block'; }
+function closeAddPenroModal() { document.getElementById('addPenroModal').style.display = 'none'; }
+function openAddCenroModal() { document.getElementById('addCenroModal').style.display = 'block'; }
+function closeAddCenroModal() { document.getElementById('addCenroModal').style.display = 'none'; }
+function editRegion(id, name) { alert('Edit Region: ' + name + '\nID: ' + id); }
+</script>
+{% endblock %}
