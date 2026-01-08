@@ -1,6 +1,7 @@
 # views.py
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
+from django.db import connection
 from .operation import (
     login_user,
     create_account,
@@ -67,12 +68,22 @@ def sa_profile(request):
 @login_required  
 @role_required(['Admin'])
 def admin_dashboard(request):
-    return render(request, 'ADMIN/ADMIN_dashboard.html')
+    from .operation import get_dashboard_stats, get_establishment_type_stats, get_protected_area_stats
+    region_id = request.session.get('region_id')
+    stats = get_dashboard_stats('admin', region_id=region_id)
+    stats['establishment_types'] = get_establishment_type_stats('admin', region_id=region_id)
+    stats['protected_areas'] = get_protected_area_stats('admin', region_id=region_id)
+    return render(request, 'ADMIN/ADMIN_dashboard.html', stats)
 
 @login_required
 @role_required(['PENRO'])
 def penro_dashboard(request):
-    return render(request, 'PENRO/PENRO_dashboard.html')
+    from .operation import get_dashboard_stats, get_establishment_type_stats, get_protected_area_stats
+    penro_id = request.session.get('penro_id')
+    stats = get_dashboard_stats('penro', penro_id=penro_id)
+    stats['establishment_types'] = get_establishment_type_stats('penro', penro_id=penro_id)
+    stats['protected_areas'] = get_protected_area_stats('penro', penro_id=penro_id)
+    return render(request, 'PENRO/PENRO_dashboard.html', stats)
 
 @login_required
 @role_required(['PENRO'])
@@ -157,7 +168,12 @@ def penro_profile(request):
 @login_required
 @role_required(['CENRO'])
 def cenro_dashboard(request):
-    return render(request, 'CENRO/CENRO_dashboard.html')
+    from .operation import get_dashboard_stats, get_establishment_type_stats, get_protected_area_stats
+    cenro_id = request.session.get('cenro_id')
+    stats = get_dashboard_stats('cenro', cenro_id=cenro_id)
+    stats['establishment_types'] = get_establishment_type_stats('cenro', cenro_id=cenro_id)
+    stats['protected_areas'] = get_protected_area_stats('cenro', cenro_id=cenro_id)
+    return render(request, 'CENRO/CENRO_dashboard.html', stats)
 
 @login_required
 @role_required(['CENRO'])
@@ -517,3 +533,198 @@ def convert_shapefile_to_geojson(request, file_path):
         import logging
         logging.exception('Error converting shapefile')
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+@role_required(['CENRO'])
+def cenro_usermanagement(request):
+    from .operation import get_all_users
+    current_role = request.session.get('role', '').lower()
+    users = get_all_users(current_role)
+    return render(request, 'CENRO/CENRO_usermanagement.html', {'users': users})
+
+@login_required
+@role_required(['CENRO'])
+def cenro_profile(request):
+    return render(request, 'CENRO/CENRO_profile.html')
+
+@login_required
+@role_required(['CENRO'])
+def cenro_establishment_history(request):
+    search = request.GET.get('search', '').strip()
+    cenro_id = request.session.get('cenro_id')
+    if not cenro_id:
+        return render(request, 'CENRO/CENRO_establishment_history.html', {'establishments': [], 'search': search})
+    with connection.cursor() as cur:
+        query = """WITH latest_versions AS (SELECT establishment_id, MAX(version) as max_version FROM establishment_history GROUP BY establishment_id) SELECT eh.id, eh.establishment_id, eh.establishment_name, eh.establishment_type, eh.establishment_status, eh.change_reason, eh.updated_at, eh.version, eh.attestation_id, an.attested_by_name, an.attested_by_position, an.attested_by_signature, an.noted_by_name, an.noted_by_position, an.noted_by_signature, (SELECT COUNT(*) FROM establishment_history WHERE establishment_id = eh.establishment_id) as total_versions FROM establishment_history eh INNER JOIN latest_versions lv ON eh.establishment_id = lv.establishment_id AND eh.version = lv.max_version LEFT JOIN attestation_notations an ON eh.attestation_id = an.id WHERE 1=1"""
+        params = []
+        if search:
+            query += " AND (eh.establishment_name ILIKE %s OR CAST(eh.establishment_id AS TEXT) LIKE %s)"
+            params.extend([f'%{search}%', f'%{search}%'])
+        query += " ORDER BY eh.updated_at DESC;"
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        supabase_url = os.getenv('SUPABASE_URL')
+        bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+        establishments = []
+        for row in rows:
+            pa_name = '—'
+            if row[5] and 'Report ' in row[5]:
+                try:
+                    import re
+                    match = re.search(r'Report (\d+)', row[5])
+                    if match:
+                        cur.execute("SELECT pa.name FROM enumerators_report er JOIN protected_areas pa ON er.pa_id = pa.id WHERE er.id = %s", [int(match.group(1))])
+                        pa_row = cur.fetchone()
+                        if pa_row:
+                            pa_name = pa_row[0]
+                except:
+                    pass
+            establishments.append({'id': row[0], 'establishment_id': row[1], 'establishment_name': row[2], 'establishment_type': row[3], 'establishment_status': row[4], 'change_reason': row[5], 'date_recorded': row[6], 'version': row[7], 'total_versions': row[15], 'attestation_id': row[8], 'attested_by_name': row[9], 'attested_by_position': row[10], 'attested_by_signature': row[11] if row[11] and row[11].startswith('http') else f"{supabase_url}/storage/v1/object/public/{bucket}/{row[11]}" if row[11] else None, 'noted_by_name': row[12], 'noted_by_position': row[13], 'noted_by_signature': row[14] if row[14] and row[14].startswith('http') else f"{supabase_url}/storage/v1/object/public/{bucket}/{row[14]}" if row[14] else None, 'pa_name': pa_name})
+    return render(request, 'CENRO/CENRO_establishment_history.html', {'establishments': establishments, 'search': search})
+
+@login_required
+@role_required(['CENRO'])
+def cenro_establishment_versions(request, establishment_id):
+    with connection.cursor() as cur:
+        cur.execute("SELECT eh.id, eh.version, eh.establishment_name, eh.establishment_type, eh.establishment_status, eh.change_reason, eh.updated_at, eh.attestation_id, an.attested_by_name, an.attested_by_position, an.attested_by_signature, an.noted_by_name, an.noted_by_position, an.noted_by_signature, eh.pa_name FROM establishment_history eh LEFT JOIN attestation_notations an ON eh.attestation_id = an.id WHERE eh.establishment_id = %s ORDER BY eh.version DESC;", [establishment_id])
+        supabase_url = os.getenv('SUPABASE_URL')
+        bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+        versions = [{'id': r[0], 'version': r[1], 'establishment_name': r[2], 'establishment_type': r[3], 'establishment_status': r[4], 'change_reason': r[5], 'pa_name': r[14] or '', 'updated_at': r[6].isoformat() if r[6] else None, 'attestation_id': r[7], 'attested_by_name': r[8], 'attested_by_position': r[9], 'attested_by_signature': (r[10] if r[10] and r[10].startswith('http') else f"{supabase_url}/storage/v1/object/public/{bucket}/{r[10]}") if r[10] else None, 'noted_by_name': r[11], 'noted_by_position': r[12], 'noted_by_signature': (r[13] if r[13] and r[13].startswith('http') else f"{supabase_url}/storage/v1/object/public/{bucket}/{r[13]}") if r[13] else None} for r in cur.fetchall()]
+    return JsonResponse(versions, safe=False)
+
+@login_required
+@role_required(['PENRO'])
+def penro_establishment_history(request):
+    search = request.GET.get('search', '').strip()
+    penro_id = request.session.get('penro_id')
+    if not penro_id:
+        return render(request, 'PENRO/PENRO_establishment_history.html', {'establishments': [], 'search': search})
+    with connection.cursor() as cur:
+        query = """WITH latest_versions AS (SELECT establishment_id, MAX(version) as max_version FROM establishment_history GROUP BY establishment_id) SELECT eh.id, eh.establishment_id, eh.establishment_name, eh.establishment_type, eh.establishment_status, eh.change_reason, eh.updated_at, eh.version, eh.attestation_id, an.attested_by_name, an.attested_by_position, an.attested_by_signature, an.noted_by_name, an.noted_by_position, an.noted_by_signature, (SELECT COUNT(*) FROM establishment_history WHERE establishment_id = eh.establishment_id) as total_versions FROM establishment_history eh INNER JOIN latest_versions lv ON eh.establishment_id = lv.establishment_id AND eh.version = lv.max_version LEFT JOIN attestation_notations an ON eh.attestation_id = an.id WHERE 1=1"""
+        params = []
+        if search:
+            query += " AND (eh.establishment_name ILIKE %s OR CAST(eh.establishment_id AS TEXT) LIKE %s)"
+            params.extend([f'%{search}%', f'%{search}%'])
+        query += " ORDER BY eh.updated_at DESC;"
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        supabase_url = os.getenv('SUPABASE_URL')
+        bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+        establishments = []
+        for row in rows:
+            pa_name = '—'
+            if row[5] and 'Report ' in row[5]:
+                try:
+                    import re
+                    match = re.search(r'Report (\d+)', row[5])
+                    if match:
+                        cur.execute("SELECT pa.name FROM enumerators_report er JOIN protected_areas pa ON er.pa_id = pa.id WHERE er.id = %s", [int(match.group(1))])
+                        pa_row = cur.fetchone()
+                        if pa_row:
+                            pa_name = pa_row[0]
+                except:
+                    pass
+            establishments.append({'id': row[0], 'establishment_id': row[1], 'establishment_name': row[2], 'establishment_type': row[3], 'establishment_status': row[4], 'change_reason': row[5], 'date_recorded': row[6], 'version': row[7], 'total_versions': row[15], 'attestation_id': row[8], 'attested_by_name': row[9], 'attested_by_position': row[10], 'attested_by_signature': row[11] if row[11] and row[11].startswith('http') else f"{supabase_url}/storage/v1/object/public/{bucket}/{row[11]}" if row[11] else None, 'noted_by_name': row[12], 'noted_by_position': row[13], 'noted_by_signature': row[14] if row[14] and row[14].startswith('http') else f"{supabase_url}/storage/v1/object/public/{bucket}/{row[14]}" if row[14] else None, 'pa_name': pa_name})
+    return render(request, 'PENRO/PENRO_establishment_history.html', {'establishments': establishments, 'search': search})
+
+@login_required
+@role_required(['PENRO'])
+def penro_establishment_versions(request, establishment_id):
+    with connection.cursor() as cur:
+        cur.execute("SELECT eh.id, eh.version, eh.establishment_name, eh.establishment_type, eh.establishment_status, eh.change_reason, eh.updated_at, eh.attestation_id, an.attested_by_name, an.attested_by_position, an.attested_by_signature, an.noted_by_name, an.noted_by_position, an.noted_by_signature, eh.pa_name FROM establishment_history eh LEFT JOIN attestation_notations an ON eh.attestation_id = an.id WHERE eh.establishment_id = %s ORDER BY eh.version DESC;", [establishment_id])
+        supabase_url = os.getenv('SUPABASE_URL')
+        bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+        versions = [{'id': r[0], 'version': r[1], 'establishment_name': r[2], 'establishment_type': r[3], 'establishment_status': r[4], 'change_reason': r[5], 'pa_name': r[14] or '', 'updated_at': r[6].isoformat() if r[6] else None, 'attestation_id': r[7], 'attested_by_name': r[8], 'attested_by_position': r[9], 'attested_by_signature': (r[10] if r[10] and r[10].startswith('http') else f"{supabase_url}/storage/v1/object/public/{bucket}/{r[10]}") if r[10] else None, 'noted_by_name': r[11], 'noted_by_position': r[12], 'noted_by_signature': (r[13] if r[13] and r[13].startswith('http') else f"{supabase_url}/storage/v1/object/public/{bucket}/{r[13]}") if r[13] else None} for r in cur.fetchall()]
+    return JsonResponse(versions, safe=False)
+
+@login_required
+@role_required(['Admin'])
+def admin_usermanagement(request):
+    from .operation import get_all_users
+    current_role = request.session.get('role', '').lower()
+    users = get_all_users(current_role)
+    return render(request, 'ADMIN/ADMIN_usermanagement.html', {'users': users})
+
+@login_required
+@role_required(['Admin'])
+def admin_user_update(request):
+    if request.method == 'POST':
+        from .operation import update_user_profile
+        user_id = request.POST.get('user_id')
+        first_name = request.POST.get('first_name')
+        last_name = request.POST.get('last_name')
+        username = request.POST.get('username')
+        email = request.POST.get('email')
+        role = request.POST.get('role')
+        success, message = update_user_profile(user_id, first_name, last_name, username, email, role)
+        if success:
+            messages.success(request, message)
+        else:
+            messages.error(request, message)
+    return redirect('admin-usermanagement')
+
+@login_required
+@role_required(['Admin'])
+def admin_user_delete(request):
+    if request.method == 'POST':
+        from .operation import delete_user
+        user_id = request.POST.get('user_id')
+        success, message = delete_user(user_id)
+        if success:
+            messages.success(request, message)
+        else:
+            messages.error(request, message)
+    return redirect('admin-usermanagement')
+
+@login_required
+@role_required(['Admin'])
+def admin_profile(request):
+    return render(request, 'ADMIN/ADMIN_profile.html')
+
+@login_required
+@role_required(['Admin'])
+def admin_establishment_history(request):
+    search = request.GET.get('search', '').strip()
+    region_id = request.session.get('region_id')
+    if not region_id:
+        return render(request, 'ADMIN/ADMIN_establishment_history.html', {'establishments': [], 'search': search})
+    with connection.cursor() as cur:
+        query = """WITH latest_versions AS (SELECT establishment_id, MAX(version) as max_version FROM establishment_history GROUP BY establishment_id) SELECT eh.id, eh.establishment_id, eh.establishment_name, eh.establishment_type, eh.establishment_status, eh.change_reason, eh.updated_at, eh.version, eh.attestation_id, an.attested_by_name, an.attested_by_position, an.attested_by_signature, an.noted_by_name, an.noted_by_position, an.noted_by_signature, (SELECT COUNT(*) FROM establishment_history WHERE establishment_id = eh.establishment_id) as total_versions FROM establishment_history eh INNER JOIN latest_versions lv ON eh.establishment_id = lv.establishment_id AND eh.version = lv.max_version LEFT JOIN attestation_notations an ON eh.attestation_id = an.id WHERE 1=1"""
+        params = []
+        if search:
+            query += " AND (eh.establishment_name ILIKE %s OR CAST(eh.establishment_id AS TEXT) LIKE %s)"
+            params.extend([f'%{search}%', f'%{search}%'])
+        query += " ORDER BY eh.updated_at DESC;"
+        cur.execute(query, params)
+        rows = cur.fetchall()
+        supabase_url = os.getenv('SUPABASE_URL')
+        bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+        establishments = []
+        for row in rows:
+            pa_name = '—'
+            if row[5] and 'Report ' in row[5]:
+                try:
+                    import re
+                    match = re.search(r'Report (\d+)', row[5])
+                    if match:
+                        cur.execute("SELECT pa.name FROM enumerators_report er JOIN protected_areas pa ON er.pa_id = pa.id WHERE er.id = %s", [int(match.group(1))])
+                        pa_row = cur.fetchone()
+                        if pa_row:
+                            pa_name = pa_row[0]
+                except:
+                    pass
+            establishments.append({'id': row[0], 'establishment_id': row[1], 'establishment_name': row[2], 'establishment_type': row[3], 'establishment_status': row[4], 'change_reason': row[5], 'date_recorded': row[6], 'version': row[7], 'total_versions': row[15], 'attestation_id': row[8], 'attested_by_name': row[9], 'attested_by_position': row[10], 'attested_by_signature': row[11] if row[11] and row[11].startswith('http') else f"{supabase_url}/storage/v1/object/public/{bucket}/{row[11]}" if row[11] else None, 'noted_by_name': row[12], 'noted_by_position': row[13], 'noted_by_signature': row[14] if row[14] and row[14].startswith('http') else f"{supabase_url}/storage/v1/object/public/{bucket}/{row[14]}" if row[14] else None, 'pa_name': pa_name})
+    return render(request, 'ADMIN/ADMIN_establishment_history.html', {'establishments': establishments, 'search': search})
+
+@login_required
+@role_required(['Admin'])
+def admin_establishment_versions(request, establishment_id):
+    with connection.cursor() as cur:
+        cur.execute("SELECT eh.id, eh.version, eh.establishment_name, eh.establishment_type, eh.establishment_status, eh.change_reason, eh.updated_at, eh.attestation_id, an.attested_by_name, an.attested_by_position, an.attested_by_signature, an.noted_by_name, an.noted_by_position, an.noted_by_signature, eh.pa_name FROM establishment_history eh LEFT JOIN attestation_notations an ON eh.attestation_id = an.id WHERE eh.establishment_id = %s ORDER BY eh.version DESC;", [establishment_id])
+        supabase_url = os.getenv('SUPABASE_URL')
+        bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+        versions = [{'id': r[0], 'version': r[1], 'establishment_name': r[2], 'establishment_type': r[3], 'establishment_status': r[4], 'change_reason': r[5], 'pa_name': r[14] or '', 'updated_at': r[6].isoformat() if r[6] else None, 'attestation_id': r[7], 'attested_by_name': r[8], 'attested_by_position': r[9], 'attested_by_signature': (r[10] if r[10] and r[10].startswith('http') else f"{supabase_url}/storage/v1/object/public/{bucket}/{r[10]}") if r[10] else None, 'noted_by_name': r[11], 'noted_by_position': r[12], 'noted_by_signature': (r[13] if r[13] and r[13].startswith('http') else f"{supabase_url}/storage/v1/object/public/{bucket}/{r[13]}") if r[13] else None} for r in cur.fetchall()]
+    return JsonResponse(versions, safe=False)
+
+

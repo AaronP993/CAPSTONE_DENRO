@@ -297,6 +297,12 @@ def create_account(request):
         # Optional
         phone_number = (request.POST.get("phone_number") or "").strip() or None
         profile_pic  = (request.POST.get("profile_pic") or "").strip() or None
+        protected_area_id = request.POST.get("protected_area_id") or None
+        if protected_area_id:
+            try:
+                protected_area_id = int(protected_area_id)
+            except:
+                protected_area_id = None
 
         # Basic validation
         errors = []
@@ -440,22 +446,20 @@ def create_account(request):
                 with connection.cursor() as cur:
                     cur.execute(
                         """
-                                                SELECT create_user(
-                                %s, %s, %s, %s,   -- first_name, last_name, gender, email
-                                %s,               -- phone_number
-                                %s,               -- role
-                                %s, %s,           -- username, password
-                                %s,               -- profile_pic
-                                %s, %s, %s,       -- region_id, penro_id, cenro_id
-                                %s                -- p_hash_password
-                            );
+                        INSERT INTO users (
+                            first_name, last_name, gender, email, phone_number,
+                            role, username, password, profile_pic,
+                            region_id, penro_id, cenro_id, protected_area_id
+                        ) VALUES (
+                            %s, %s, %s, %s, %s,
+                            %s, %s, crypt(%s, gen_salt('bf')), %s,
+                            %s, %s, %s, %s
+                        ) RETURNING id;
                         """,
                         [
-                            first_name, last_name, gender, email,
-                            phone_number, role, username,
-                            password, profile_pic,
-                            r, p, c,
-                            True,
+                            first_name, last_name, gender, email, phone_number,
+                            role, username, password, profile_pic,
+                            r, p, c, protected_area_id
                         ],
                     )
                     new_id = cur.fetchone()[0]
@@ -473,6 +477,9 @@ def create_account(request):
 
     # GET → show form with appropriate options based on current user's role
     available_offices = get_available_offices_for_user(current_role, current_region_id, current_penro_id, current_cenro_id)
+    
+    # Get protected areas list
+    protected_areas = get_protected_areas()
     
     # Get current user's office names for display
     current_user_region_name = None
@@ -502,6 +509,7 @@ def create_account(request):
         "regions": available_offices["regions"],
         "penros": available_offices["penros"],
         "cenros": available_offices["cenros"],
+        "protected_areas": protected_areas,
         "roles": allowed_roles,
         "genders": ["Male", "Female", "Other"],
         "current_user_role": current_role.title(),
@@ -611,10 +619,19 @@ def get_enumerator_reports(submitter_role=None, from_date=None, to_date=None, es
                     u.cenro_id,
                     ep.establishment_type,
                     er.pa_id,
-                    ep.establishment_status
+                    ep.establishment_status,
+                    CASE 
+                        WHEN an.attested_by_signature IS NOT NULL 
+                        AND an.noted_by_signature IS NOT NULL 
+                        AND TRIM(an.attested_by_signature) != '' 
+                        AND TRIM(an.noted_by_signature) != '' 
+                        THEN TRUE 
+                        ELSE FALSE 
+                    END as is_completed
                 FROM enumerators_report er
                 LEFT JOIN users u ON er.enumerator_id = u.id
                 LEFT JOIN establishment_profile ep ON er.establishment_id = ep.id
+                LEFT JOIN attestation_notations an ON er.attestation_id = an.id
                 WHERE 1=1
             """
             
@@ -651,6 +668,9 @@ def get_enumerator_reports(submitter_role=None, from_date=None, to_date=None, es
             if establishment_status:
                 query += " AND LOWER(TRIM(ep.establishment_status)) = LOWER(TRIM(%s))"
                 params.append(establishment_status)
+            
+            # Hide completed reports (both attested and noted)
+            query += " AND NOT (an.attested_by_signature IS NOT NULL AND an.noted_by_signature IS NOT NULL AND TRIM(an.attested_by_signature) != '' AND TRIM(an.noted_by_signature) != '')"
             
             query += " ORDER BY er.report_date DESC, er.created_at DESC;"
             
@@ -1045,20 +1065,20 @@ def get_report_images(report_id):
 def save_notation(report_id, noted_by_name, noted_by_position, signature_dataurl, current_user_id=None):
     """Save notation record and upload signature image to Supabase storage.
 
-    Returns (True, public_url) on success, or (False, error_message) on failure.
+    Returns (True, public_url, added_to_history) on success, or (False, error_message, False) on failure.
     """
     try:
         if not report_id:
-            return False, 'Invalid report id'
+            return False, 'Invalid report id', False
 
         if not signature_dataurl or not signature_dataurl.startswith('data:'):
-            return False, 'Invalid signature data'
+            return False, 'Invalid signature data', False
 
         header, encoded = signature_dataurl.split(',', 1)
         try:
             data = base64.b64decode(encoded)
         except Exception as e:
-            return False, f'Decoding error: {e}'
+            return False, f'Decoding error: {e}', False
 
         bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
         filename = f"attestation/report_{report_id}_noted_{int(time.time())}.png"
@@ -1069,67 +1089,72 @@ def save_notation(report_id, noted_by_name, noted_by_position, signature_dataurl
             signature_url_to_store = filename
         except Exception as e:
             logger.exception('Supabase upload failed: %s', e)
-            return False, f'Upload failed: {str(e)}'
+            return False, f'Upload failed: {str(e)}', False
 
-        with connection.cursor() as cur:
-            cur.execute("SELECT attestation_id FROM enumerators_report WHERE id = %s;", [report_id])
-            row = cur.fetchone()
-            existing_id = row[0] if row else None
+        added_to_history = False
+        with transaction.atomic():
+            with connection.cursor() as cur:
+                cur.execute("SELECT attestation_id FROM enumerators_report WHERE id = %s;", [report_id])
+                row = cur.fetchone()
+                existing_id = row[0] if row else None
 
-            if existing_id:
-                cur.execute(
-                    """
-                    UPDATE attestation_notations
-                    SET noted_by_name = %s,
-                        noted_by_position = %s,
-                        noted_by_signature = %s
-                    WHERE id = %s
-                    RETURNING id;
-                    """,
-                    [noted_by_name, noted_by_position, signature_url_to_store, existing_id]
-                )
-                cur.fetchone()
-            else:
-                cur.execute(
-                    """
-                    INSERT INTO attestation_notations (noted_by_name, noted_by_position, noted_by_signature)
-                    VALUES (%s, %s, %s)
-                    RETURNING id;
-                    """,
-                    [noted_by_name, noted_by_position, signature_url_to_store]
-                )
-                new_id = cur.fetchone()[0]
-                cur.execute("UPDATE enumerators_report SET attestation_id = %s WHERE id = %s;", [new_id, report_id])
+                if existing_id:
+                    cur.execute(
+                        """
+                        UPDATE attestation_notations
+                        SET noted_by_name = %s,
+                            noted_by_position = %s,
+                            noted_by_signature = %s
+                        WHERE id = %s
+                        RETURNING id;
+                        """,
+                        [noted_by_name, noted_by_position, signature_url_to_store, existing_id]
+                    )
+                    cur.fetchone()
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO attestation_notations (noted_by_name, noted_by_position, noted_by_signature)
+                        VALUES (%s, %s, %s)
+                        RETURNING id;
+                        """,
+                        [noted_by_name, noted_by_position, signature_url_to_store]
+                    )
+                    new_id = cur.fetchone()[0]
+                    cur.execute("UPDATE enumerators_report SET attestation_id = %s WHERE id = %s;", [new_id, report_id])
+
+                # Check if both attested and noted are complete
+                added_to_history = _check_and_add_to_history(report_id, current_user_id)
 
         full_url = f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{signature_url_to_store}"
-        return True, full_url
+        return True, full_url, added_to_history
 
     except DatabaseError as e:
         logger.exception('DB error saving notation: %s', e)
-        return False, str(e)
+        return False, str(e), False
     except Exception as e:
         logger.exception('Unexpected error saving notation: %s', e)
-        return False, str(e)
+        return False, str(e), False
 
 
 def save_attestation(report_id, attested_by_name, attested_by_position, signature_dataurl, current_user_id=None):
     """Save attestation record and upload signature image to Supabase storage.
 
-    Returns (True, public_url) on success, or (False, error_message) on failure.
+    Returns (True, public_url, added_to_history) on success, or (False, error_message, False) on failure.
     """
     try:
         if not report_id:
-            return False, 'Invalid report id'
+            return False, 'Invalid report id', False
 
         # Decode data URL
         if not signature_dataurl or not signature_dataurl.startswith('data:'):
-            return False, 'Invalid signature data'
+            return False, 'Invalid signature data', False
 
         header, encoded = signature_dataurl.split(',', 1)
         try:
             data = base64.b64decode(encoded)
         except Exception as e:
-            return False, f'Decoding error: {e}'
+            return False, f'Decoding error: {e}', False
 
         # Prepare file path in attestation folder
         bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
@@ -1142,52 +1167,133 @@ def save_attestation(report_id, attested_by_name, attested_by_position, signatur
             signature_url_to_store = filename
         except Exception as e:
             logger.exception('Supabase upload failed: %s', e)
-            return False, f'Upload failed: {str(e)}'
+            return False, f'Upload failed: {str(e)}', False
 
         # Insert or update attestation_notations and link to enumerators_report
-        with connection.cursor() as cur:
-            # Check existing attestation_id
-            cur.execute("SELECT attestation_id FROM enumerators_report WHERE id = %s;", [report_id])
-            row = cur.fetchone()
-            existing_id = row[0] if row else None
+        added_to_history = False
+        with transaction.atomic():
+            with connection.cursor() as cur:
+                # Check existing attestation_id
+                cur.execute("SELECT attestation_id FROM enumerators_report WHERE id = %s;", [report_id])
+                row = cur.fetchone()
+                existing_id = row[0] if row else None
 
-            if existing_id:
-                cur.execute(
-                    """
-                    UPDATE attestation_notations
-                    SET attested_by_name = %s,
-                        attested_by_position = %s,
-                        attested_by_signature = %s
-                    WHERE id = %s
-                    RETURNING id;
-                    """,
-                    [attested_by_name, attested_by_position, signature_url_to_store, existing_id]
-                )
-                cur.fetchone()
-            else:
-                cur.execute(
-                    """
-                    INSERT INTO attestation_notations (attested_by_name, attested_by_position, attested_by_signature)
-                    VALUES (%s, %s, %s)
-                    RETURNING id;
-                    """,
-                    [attested_by_name, attested_by_position, signature_url_to_store]
-                )
-                new_id = cur.fetchone()[0]
-                cur.execute("UPDATE enumerators_report SET attestation_id = %s WHERE id = %s;", [new_id, report_id])
+                if existing_id:
+                    cur.execute(
+                        """
+                        UPDATE attestation_notations
+                        SET attested_by_name = %s,
+                            attested_by_position = %s,
+                            attested_by_signature = %s
+                        WHERE id = %s
+                        RETURNING id;
+                        """,
+                        [attested_by_name, attested_by_position, signature_url_to_store, existing_id]
+                    )
+                    cur.fetchone()
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO attestation_notations (attested_by_name, attested_by_position, attested_by_signature)
+                        VALUES (%s, %s, %s)
+                        RETURNING id;
+                        """,
+                        [attested_by_name, attested_by_position, signature_url_to_store]
+                    )
+                    new_id = cur.fetchone()[0]
+                    cur.execute("UPDATE enumerators_report SET attestation_id = %s WHERE id = %s;", [new_id, report_id])
+
+                # Check if both attested and noted are complete
+                added_to_history = _check_and_add_to_history(report_id, current_user_id)
 
         # Return full URL for response
         full_url = f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{signature_url_to_store}"
-        return True, full_url
+        return True, full_url, added_to_history
 
     except DatabaseError as e:
         logger.exception('DB error saving attestation: %s', e)
-        return False, str(e)
+        return False, str(e), False
     except Exception as e:
         logger.exception('Unexpected error saving attestation: %s', e)
-        return False, str(e)
+        return False, str(e), False
 
 
+
+
+def _check_and_add_to_history(report_id, updated_by):
+    """Check if report is fully attested and noted, then add to establishment history.
+    Returns True if added to history, False otherwise.
+    """
+    try:
+        with connection.cursor() as cur:
+            # Check if both attested and noted signatures exist and get attestation_id
+            cur.execute("""
+                SELECT an.attested_by_signature, an.noted_by_signature, er.establishment_id, er.attestation_id
+                FROM enumerators_report er
+                LEFT JOIN attestation_notations an ON er.attestation_id = an.id
+                WHERE er.id = %s;
+            """, [report_id])
+            row = cur.fetchone()
+            
+            if not row:
+                return False
+            
+            attested_sig, noted_sig, establishment_id, attestation_id = row
+            
+            # Only proceed if both signatures exist and are not empty
+            if not attested_sig or not noted_sig or not establishment_id:
+                return False
+            
+            if not attested_sig.strip() or not noted_sig.strip():
+                return False
+            
+            # Check if already added to history for this report
+            cur.execute("""
+                SELECT COUNT(*) FROM establishment_history
+                WHERE establishment_id = %s 
+                AND change_reason LIKE %s;
+            """, [establishment_id, f'%Report {report_id}%'])
+            
+            if cur.fetchone()[0] > 0:
+                return False  # Already added
+            
+            # Get current establishment profile data (only essential fields, no signatures)
+            cur.execute("""
+                SELECT establishment_name, lot_status, land_classification, title_no, 
+                       tax_declaration_no, lot_no, lot_owner, area_covered, pa_zone, 
+                       within_easement, establishment_status, establishment_type, description,
+                       mayor_permit_no, mayor_permit_issued, mayor_permit_exp,
+                       business_permit_no, business_permit_issued, business_permit_exp,
+                       building_permit_no, building_permit_issued, building_permit_exp,
+                       pamb_resolution_no, pamb_date_issued, sapa_no, sapa_date_issued,
+                       pacbrma_no, pacbrma_date_issued, ecc_no, ecc_date_issued,
+                       discharge_permit_no, discharge_date_issued, pto_no, pto_date_issued,
+                       other_emb
+                FROM establishment_profile
+                WHERE id = %s;
+            """, [establishment_id])
+            profile_row = cur.fetchone()
+            
+            if not profile_row:
+                return False
+            
+            # Get next version number
+            cur.execute("""
+                SELECT COALESCE(MAX(version), 0) + 1
+                FROM establishment_history
+                WHERE establishment_id = %s;
+            """, [establishment_id])
+            next_version = cur.fetchone()[0]
+            
+            # Triggers handle this automatically - skip Python insert
+            return True
+            
+            logger.info(f'Added establishment {establishment_id} to history (version {next_version}) from report {report_id}')
+            return True
+            
+    except Exception as e:
+        logger.exception(f'Error adding to establishment history: {e}')
+        return False
 
 
 def get_activity_logs():
@@ -1215,9 +1321,27 @@ def get_activity_logs():
 # =========================
 # PROTECTED AREAS MANAGEMENT
 # =========================
-def add_protected_area(name, file_obj):
-    """Add protected area with file upload to Supabase."""
+def add_protected_area(name, file_obj, jurisdiction_level=None, region_id=None, penro_id=None, cenro_id=None):
+    """Add protected area with file upload to Supabase and jurisdiction assignment."""
     try:
+        # Validate jurisdiction assignment
+        if jurisdiction_level not in ['region', 'penro', 'cenro']:
+            return False, 'Invalid jurisdiction level. Must be region, penro, or cenro.'
+        
+        # Validate jurisdiction IDs based on level
+        if jurisdiction_level == 'region':
+            if not region_id:
+                return False, 'Region ID is required for region-level jurisdiction.'
+            penro_id = cenro_id = None
+        elif jurisdiction_level == 'penro':
+            if not penro_id:
+                return False, 'PENRO ID is required for PENRO-level jurisdiction.'
+            region_id = cenro_id = None
+        elif jurisdiction_level == 'cenro':
+            if not cenro_id:
+                return False, 'CENRO ID is required for CENRO-level jurisdiction.'
+            region_id = penro_id = None
+        
         # Determine file type
         file_name = file_obj.name.lower()
         if file_name.endswith('.kml'):
@@ -1239,12 +1363,16 @@ def add_protected_area(name, file_obj):
             logger.exception('Supabase file upload failed: %s', e)
             return False, f'File upload failed: {str(e)}'
 
-        # Insert into Supabase table
+        # Insert into Supabase table with jurisdiction
         try:
             result = supabase.table('protected_areas').insert({
                 'name': name,
                 'file_type': file_type,
-                'file_path': file_path
+                'file_path': file_path,
+                'jurisdiction_level': jurisdiction_level,
+                'region_id': region_id,
+                'penro_id': penro_id,
+                'cenro_id': cenro_id
             }).execute()
             
             return True, 'Protected area added successfully'
@@ -1352,6 +1480,55 @@ def get_reports_context(request, submitter_role):
         'supabase_url': os.getenv('SUPABASE_URL'),
         'supabase_bucket': os.getenv('SUPABASE_BUCKET', 'images'),
     }
+
+def get_all_users(current_role=None):
+    """Fetch users from database filtered by current user's role.
+    - Admin: All users except Super Admin
+    - PENRO: PENRO and CENRO users only
+    - CENRO: CENRO users only
+    """
+    try:
+        with connection.cursor() as cur:
+            query = """
+                SELECT u.id, u.first_name, u.last_name, u.role, u.username, u.email,
+                       COALESCE(r.name, p.name, c.name, 'N/A') as office,
+                       r.name as region_name, p.name as penro_name, c.name as cenro_name
+                FROM users u
+                LEFT JOIN regions r ON u.region_id = r.id
+                LEFT JOIN penros p ON u.penro_id = p.id
+                LEFT JOIN cenros c ON u.cenro_id = c.id
+                WHERE 1=1
+            """
+            
+            if current_role == 'admin':
+                query += " AND LOWER(u.role) != 'super admin'"
+            elif current_role == 'penro':
+                query += " AND LOWER(u.role) IN ('penro', 'cenro')"
+            elif current_role == 'cenro':
+                query += " AND LOWER(u.role) = 'cenro'"
+            
+            query += " ORDER BY u.id DESC;"
+            
+            cur.execute(query)
+            
+            users = []
+            for row in cur.fetchall():
+                users.append({
+                    'user_id': row[0],
+                    'first_name': row[1],
+                    'last_name': row[2],
+                    'role': row[3],
+                    'username': row[4],
+                    'email': row[5],
+                    'office': row[6],
+                    'region_name': row[7] or '—',
+                    'penro_name': row[8] or '—',
+                    'cenro_name': row[9] or '—'
+                })
+            return users
+    except Exception as e:
+        logger.exception('Error fetching users: %s', e)
+        return []
 
 def export_reports(reports, format_type):
     """Export detailed reports to PDF, Word, or Excel format"""
@@ -1701,3 +1878,98 @@ def export_reports(reports, format_type):
         response = HttpResponse(buffer.read(), content_type='application/pdf')
         response['Content-Disposition'] = 'attachment; filename="detailed_reports.pdf"'
         return response
+
+
+def get_dashboard_stats(role, cenro_id=None, penro_id=None, region_id=None):
+    """Get dashboard statistics based on user role."""
+    stats = {}
+    
+    try:
+        with connection.cursor() as cur:
+            if role == 'cenro':
+                cur.execute("SELECT COUNT(*) FROM enumerators_report")
+                stats['total_reports'] = cur.fetchone()[0]
+                
+                cur.execute("SELECT COUNT(DISTINCT establishment_id) FROM establishment_history")
+                stats['total_establishments'] = cur.fetchone()[0]
+                
+                cur.execute("SELECT COUNT(*) FROM protected_areas")
+                stats['total_protected_areas'] = cur.fetchone()[0]
+                
+            elif role == 'penro':
+                cur.execute("SELECT COUNT(*) FROM enumerators_report")
+                stats['total_reports'] = cur.fetchone()[0]
+                
+                cur.execute("SELECT COUNT(*) FROM users WHERE role = 'CENRO'")
+                stats['total_cenro'] = cur.fetchone()[0]
+                
+                cur.execute("SELECT COUNT(DISTINCT establishment_id) FROM establishment_history")
+                stats['total_establishments'] = cur.fetchone()[0]
+                
+            elif role == 'admin':
+                cur.execute("SELECT COUNT(*) FROM enumerators_report")
+                stats['total_reports'] = cur.fetchone()[0]
+                
+                cur.execute("SELECT COUNT(*) FROM users WHERE role = 'CENRO'")
+                stats['total_cenro'] = cur.fetchone()[0]
+                
+                cur.execute("SELECT COUNT(*) FROM users WHERE role = 'PENRO'")
+                stats['total_penro'] = cur.fetchone()[0]
+                
+                cur.execute("SELECT COUNT(DISTINCT establishment_id) FROM establishment_history")
+                stats['total_establishments'] = cur.fetchone()[0]
+                
+    except Exception as e:
+        logger.exception(f'Error fetching dashboard stats: {e}')
+        
+    return stats
+
+
+def get_establishment_type_stats(role=None, cenro_id=None, penro_id=None, region_id=None):
+    """Get establishment type statistics for charts."""
+    stats = []
+    
+    try:
+        with connection.cursor() as cur:
+            query = """
+                SELECT ep.establishment_type, COUNT(*) as count
+                FROM establishment_profile ep
+                WHERE ep.establishment_type IS NOT NULL
+                GROUP BY ep.establishment_type
+                ORDER BY count DESC
+                LIMIT 10
+            """
+            cur.execute(query)
+            
+            for row in cur.fetchall():
+                stats.append({'type': row[0], 'count': row[1]})
+                
+    except Exception as e:
+        logger.exception(f'Error fetching establishment type stats: {e}')
+        
+    return stats
+
+
+def get_protected_area_stats(role=None, cenro_id=None, penro_id=None, region_id=None):
+    """Get protected area statistics for charts."""
+    stats = []
+    
+    try:
+        with connection.cursor() as cur:
+            query = """
+                SELECT pa.name, COUNT(er.id) as count
+                FROM protected_areas pa
+                LEFT JOIN enumerators_report er ON pa.id = er.pa_id
+                GROUP BY pa.id, pa.name
+                ORDER BY count DESC
+                LIMIT 10
+            """
+            cur.execute(query)
+            
+            for row in cur.fetchall():
+                stats.append({'name': row[0], 'count': row[1]})
+                
+    except Exception as e:
+        logger.exception(f'Error fetching protected area stats: {e}')
+        
+    return stats

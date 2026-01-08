@@ -13,19 +13,44 @@
         <span>Dashboard</span>
       </a>
     </li>
-    <li>
+    <!-- <li>
       <a href="{% url 'CENRO-activitylogs' %}">
         <img src="{% static 'images/activitylogs.png' %}" alt="" class="nav-icon" aria-hidden="true">
         <span>Activity Logs</span>
       </a>
-    </li>
+    </li> -->
     <li>
       <a href="{% url 'CENRO-reports' %}">
         <img src="{% static 'images/reports.png' %}" alt="" class="nav-icon" aria-hidden="true">
-        <span>Reports</span>
+        <span>New Entries</span>
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'cenro-establishment-history' %}">
+        <img src="{% static 'images/history.png' %}" alt="" class="nav-icon" aria-hidden="true">
+        <span>Establishment</span>
+      </a>
+    </li>
+    <!-- <li>
+      <a href="{% url 'CENRO-templates' %}">
+        <img src="{% static 'images/templates.png' %}" alt="" class="nav-icon" aria-hidden="true">
+        <span>Templates</span>
+      </a>
+    </li> -->
+     <li>
+      <a href="{% url 'CENRO-usermanagement' %}">
+        <img src="{% static 'images/users.png' %}" alt="" class="nav-icon" aria-hidden="true">
+        <span>User Management</span>
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'CENRO-profile' %}">
+        <img src="{% static 'images/users.png' %}" alt="" class="nav-icon" aria-hidden="true">
+        <span>Profile</span>
       </a>
     </li>
   </ul>
+  
 
   <div class="sidenav__footer">
     <a href="{% url 'logout' %}">

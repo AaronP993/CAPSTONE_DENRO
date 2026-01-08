@@ -107,7 +107,8 @@
     color: #333;
   }
   
-  .form-group input[type="text"] {
+  .form-group input[type="text"],
+  .form-group select {
     width: 100%;
     padding: 0.75rem;
     border: 1px solid #ddd;
@@ -115,7 +116,8 @@
     font-size: 1rem;
   }
   
-  .form-group input[type="text"]:focus {
+  .form-group input[type="text"]:focus,
+  .form-group select:focus {
     outline: none;
     border-color: #4CAF50;
   }
@@ -359,6 +361,42 @@
       </div>
       
       <div class="form-group">
+        <label for="jurisdictionLevel">Jurisdiction Level *</label>
+        <select id="jurisdictionLevel" name="jurisdiction_level" required onchange="updateJurisdictionFields()">
+          <option value="">Select jurisdiction level</option>
+          <option value="region">Region</option>
+          <option value="penro">PENRO</option>
+          <option value="cenro">CENRO</option>
+        </select>
+      </div>
+      
+      <div class="form-group" id="regionField" style="display:none;">
+        <label for="regionId">Region</label>
+        <input type="text" id="regionDisplay" value="{{ user_region_name }}" disabled style="background:#f5f5f5;">
+        <input type="hidden" id="regionId" name="region_id" value="{{ user_region_id }}">
+      </div>
+      
+      <div class="form-group" id="penroField" style="display:none;">
+        <label for="penroId">PENRO *</label>
+        <select id="penroId" name="penro_id">
+          <option value="">Select PENRO</option>
+          {% for penro in penros %}
+          <option value="{{ penro.id }}">{{ penro.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      
+      <div class="form-group" id="cenroField" style="display:none;">
+        <label for="cenroId">CENRO *</label>
+        <select id="cenroId" name="cenro_id">
+          <option value="">Select CENRO</option>
+          {% for cenro in cenros %}
+          <option value="{{ cenro.id }}">{{ cenro.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      
+      <div class="form-group">
         <label>Upload KML or Shapefile *</label>
         <div class="file-upload" onclick="document.getElementById('fileInput').click()">
           <input type="file" id="fileInput" name="file" accept=".kml,.zip" required onchange="displayFileName()">
@@ -401,6 +439,20 @@ function closeModal() {
   document.body.style.overflow = '';
   document.getElementById('paForm').reset();
   document.getElementById('fileName').textContent = '';
+  document.getElementById('regionField').style.display = 'none';
+  document.getElementById('penroField').style.display = 'none';
+  document.getElementById('cenroField').style.display = 'none';
+}
+
+function updateJurisdictionFields() {
+  const level = document.getElementById('jurisdictionLevel').value;
+  document.getElementById('regionField').style.display = level === 'region' ? 'block' : 'none';
+  document.getElementById('penroField').style.display = level === 'penro' ? 'block' : 'none';
+  document.getElementById('cenroField').style.display = level === 'cenro' ? 'block' : 'none';
+  
+  // Set required attribute based on visibility (region is auto-filled, so not required)
+  document.getElementById('penroId').required = level === 'penro';
+  document.getElementById('cenroId').required = level === 'cenro';
 }
 
 function displayFileName() {
@@ -457,7 +509,8 @@ function viewPA(filePath, name, fileType) {
   
   // Initialize map if not already done
   if (!map) {
-    map = L.map('map').setView([10.3157, 123.8854], 10); // Cebu coordinates
+    // Cebu coordinates
+    map = L.map('map').setView([10.3157, 123.8854], 10);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);

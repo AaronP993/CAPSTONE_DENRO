@@ -1,0 +1,173 @@
+/* Unified Table Design - Green Theme */
+
+.table-wrapper {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #cdebe0;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(76, 175, 80, 0.08);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.data-table thead {
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  color: white;
+}
+
+.data-table thead th {
+  padding: 0.9rem 0.8rem;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: none;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.data-table tbody tr {
+  border-bottom: 1px solid #e8f5e9;
+  transition: all 0.2s ease;
+}
+
+.data-table tbody tr:hover {
+  background: #f1f8f4;
+  transform: translateX(2px);
+  box-shadow: -3px 0 0 #4CAF50;
+}
+
+.data-table tbody td {
+  padding: 0.75rem 0.8rem;
+  color: #333;
+  border: none;
+}
+
+.data-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+/* Alternating row colors */
+.data-table tbody tr:nth-child(even) {
+  background: #fafffe;
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.status-active, .status-functional {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-pending {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.status-inactive, .status-abandoned {
+  background: #ffebee;
+  color: #c62828;
+}
+
+/* Action buttons in tables */
+.table-action-btn {
+  padding: 0.35rem 0.8rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.table-action-btn.primary {
+  background: #4CAF50;
+  color: white;
+}
+
+.table-action-btn.primary:hover {
+  background: #45a049;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(76, 175, 80, 0.3);
+}
+
+.table-action-btn.secondary {
+  background: #f5f5f5;
+  color: #666;
+  border: 1px solid #cdebe0;
+}
+
+.table-action-btn.secondary:hover {
+  background: #e0e0e0;
+}
+
+/* Scrollable table container */
+.table-scroll-container {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 250px);
+}
+
+/* Show scrollbar when more than 5 rows */
+.table-scroll-container.has-scroll {
+  max-height: 400px;
+}
+
+.table-scroll-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.table-scroll-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.table-scroll-container::-webkit-scrollbar-thumb {
+  background: #cdebe0;
+  border-radius: 4px;
+}
+
+.table-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #4CAF50;
+}
+
+/* Empty state */
+.table-empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #666;
+}
+
+.table-empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .data-table {
+    font-size: 0.8rem;
+  }
+  
+  .data-table thead th,
+  .data-table tbody td {
+    padding: 0.6rem 0.5rem;
+  }
+}

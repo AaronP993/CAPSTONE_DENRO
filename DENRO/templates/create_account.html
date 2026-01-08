@@ -143,6 +143,18 @@
           </div>
         </div>
 
+        <!-- Protected Area Assignment (optional) -->
+        <div class="field">
+          <label>Assign Protected Area (Optional):</label>
+          <select name="protected_area_id" id="paSelect">
+            <option value="">-- No Assignment --</option>
+            {% for pa in protected_areas %}
+              <option value="{{ pa.id }}">{{ pa.name }}</option>
+            {% endfor %}
+          </select>
+          <small class="help-text">Optionally assign a protected area to this user.</small>
+        </div>
+
         <div class="field">
           <label>Username:</label>
           <input type="text" name="username" required>
@@ -395,19 +407,166 @@
 </script>
 
 <style>
-  .user-info {
-    background: #f8f9fa;
+  .signup-shell {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 20px;
+  }
+
+  .card {
+    display: flex;
+    max-width: 1000px;
+    width: 100%;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    overflow: hidden;
+  }
+
+  .card-left {
+    width: 35%;
+    background: linear-gradient(135deg, #1abc9c 0%, #16a085 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+
+  .card-left .logo {
+    max-width: 200px;
+    width: 100%;
+    filter: brightness(0) invert(1);
+  }
+
+  .card-right {
+    width: 65%;
+    padding: 40px;
+    overflow-y: auto;
+    max-height: 90vh;
+  }
+
+  .card-right h1 {
+    color: #2c3e50;
+    font-size: 1.8rem;
+    margin-bottom: 1.5rem;
+    font-weight: 600;
+  }
+
+  .btn-back {
     padding: 0.5rem 1rem;
-    border-radius: 4px;
+    background: #95a5a6;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    transition: background 0.3s;
+  }
+
+  .btn-back:hover {
+    background: #7f8c8d;
+  }
+
+  .field {
+    margin-bottom: 1.2rem;
+  }
+
+  .field label {
+    display: block;
+    margin-bottom: 0.4rem;
+    color: #34495e;
+    font-weight: 500;
+    font-size: 0.95rem;
+  }
+
+  .field input[type="text"],
+  .field input[type="email"],
+  .field input[type="password"],
+  .field select {
+    width: 100%;
+    padding: 0.75rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    transition: border-color 0.3s;
+  }
+
+  .field input:focus,
+  .field select:focus {
+    outline: none;
+    border-color: #1abc9c;
+  }
+
+  .radio-row {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .radio {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+  }
+
+  .radio input[type="radio"] {
+    margin-right: 0.5rem;
+    cursor: pointer;
+  }
+
+  .btn-next {
+    width: 100%;
+    padding: 0.9rem;
+    background: linear-gradient(135deg, #1abc9c 0%, #16a085 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.3s;
+    margin-top: 1rem;
+  }
+
+  .btn-next:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(26, 188, 156, 0.4);
+  }
+
+  .pager-dots {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+  }
+
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ddd;
+  }
+
+  .dot.active {
+    background: #1abc9c;
+  }
+
+  .user-info {
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
     margin-bottom: 1rem;
     font-size: 0.9rem;
-    color: #6c757d;
+    color: #2e7d32;
+    border-left: 4px solid #4caf50;
   }
   
   .help-text {
     font-size: 0.8rem;
-    margin-top: 0.25rem;
+    margin-top: 0.3rem;
     display: block;
+    color: #7f8c8d;
   }
   
   .messages {
@@ -417,39 +576,40 @@
   }
   
   .msg {
-    padding: 0.75rem;
-    margin-bottom: 0.5rem;
-    border-radius: 4px;
-    background-color: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
+    padding: 0.9rem;
+    margin-bottom: 0.6rem;
+    border-radius: 8px;
+    background-color: #ffebee;
+    color: #c62828;
+    border-left: 4px solid #e53935;
+    font-size: 0.9rem;
   }
   
   .msg.success {
-    background-color: #d4edda;
-    color: #155724;
-    border-color: #c3e6cb;
+    background-color: #e8f5e9;
+    color: #2e7d32;
+    border-left-color: #4caf50;
   }
   
   .msg.info {
-    background-color: #cce7ff;
-    color: #004085;
-    border-color: #b3d7ff;
+    background-color: #e3f2fd;
+    color: #1565c0;
+    border-left-color: #2196f3;
   }
 
-  /* Auto-inheritance styling */
   .inherited-assignments {
-    background: #e8f5e8;
-    border: 1px solid #c3e6cb;
-    border-radius: 6px;
-    padding: 1rem;
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    border: 2px solid #81c784;
+    border-radius: 8px;
+    padding: 1.2rem;
     margin: 1rem 0;
   }
 
   .inherited-assignments h3 {
-    margin: 0 0 0.5rem 0;
-    color: #155724;
-    font-size: 1rem;
+    margin: 0 0 0.8rem 0;
+    color: #2e7d32;
+    font-size: 1.1rem;
+    font-weight: 600;
   }
 
   .assignment-display {
@@ -457,29 +617,50 @@
   }
 
   .assignment-item {
-    padding: 0.25rem 0;
-    color: #155724;
+    padding: 0.4rem 0;
+    color: #1b5e20;
+    font-size: 0.95rem;
   }
 
   .assignment-item strong {
     display: inline-block;
-    min-width: 80px;
+    min-width: 90px;
+    color: #2e7d32;
   }
 
   .manual-selection {
-    background: #fff3cd;
-    border: 1px solid #ffeaa7;
-    border-radius: 6px;
-    padding: 1rem;
+    background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+    border: 2px solid #ffd54f;
+    border-radius: 8px;
+    padding: 1.2rem;
     margin: 1rem 0;
   }
 
   .manual-selection .field {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.8rem;
   }
 
   .manual-selection .field:last-child {
     margin-bottom: 0;
+  }
+
+  @media (max-width: 768px) {
+    .card {
+      flex-direction: column;
+    }
+    
+    .card-left,
+    .card-right {
+      width: 100%;
+    }
+    
+    .card-left {
+      padding: 30px;
+    }
+    
+    .card-right {
+      padding: 30px;
+    }
   }
 </style>
 

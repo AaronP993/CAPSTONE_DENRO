@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Establishment History{% endblock %}
+
+{% block extra_css %}
+<style>
+  .history-container {
+    background: #fff;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #cdebe0;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 120px);
+    overflow: hidden;
+  }
+  .history-header {
+    margin-bottom: 1rem;
+    flex-shrink: 0;
+  }
+  .history-header h2 {
+    margin: 0 0 0.5rem 0;
+  }
+  .history-count {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+  }
+  
+  .filter-section {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    flex-wrap: nowrap;
+    padding: 0.5rem 0;
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .filter-label {
+    font-weight: 500;
+    color: #555;
+    font-size: 0.75rem;
+  }
+  .search-input {
+    padding: .3rem .4rem;
+    border-radius: 4px;
+    border: 1px solid #cdebe0;
+    background: #fff;
+    font-size: 0.75rem;
+    width: 200px;
+  }
+  .filter-btn {
+    padding: .3rem .7rem;
+    border: none;
+    border-radius: 4px;
+    background: #4CAF50;
+    color: white;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.3s;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .filter-btn:hover {
+    background: #45a049;
+  }
+  .clear-btn {
+    padding: .3rem .6rem;
+    border: 1px solid #cdebe0;
+    border-radius: 4px;
+    background: #f5f5f5;
+    color: #666;
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.3s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .clear-btn:hover {
+    background: #e0e0e0;
+  }
+  
+  .table-container, .table-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    margin-top: 0.75rem;
+    min-height: 0;
+  }
+  .establishment-name {
+    font-weight: 500;
+    color: #2c5aa0;
+  }
+  .no-data {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #666;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  .no-data-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="history-container">
+  <div class="history-header">
+    <h2>🏢 Establishment History</h2>
+    <p class="history-count">
+      {% if establishments %}
+        Showing {{ establishments|length }} establishment{% if establishments|length != 1 %}s{% endif %}
+      {% else %}
+        No establishment records found
+      {% endif %}
+    </p>
+  </div>
+  
+  <div class="filter-section">
+    <div class="filter-group">
+      <label class="filter-label">Search:</label>
+      <input type="text" 
+             class="search-input" 
+             id="searchInput" 
+             placeholder="Establishment name or tracking ID..."
+             value="{{ search }}">
+    </div>
+    
+    <button class="filter-btn" onclick="applySearch()">Search</button>
+    <button class="clear-btn" onclick="clearSearch()">Clear</button>
+  </div>
+  
+  {% if establishments %}
+  <div class="table-scroll-container">
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Est. ID</th>
+            <th>Establishment Name</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Protected Area</th>
+            <th>Versions</th>
+            <th>Last Updated</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in establishments %}
+          <tr>
+            <td class="establishment-name">#{{ item.establishment_id }}</td>
+            <td>{{ item.establishment_name|default:"—" }}</td>
+            <td>{{ item.establishment_type|default:"—" }}</td>
+            <td>{{ item.establishment_status|default:"—" }}</td>
+            <td>{{ item.pa_name }}</td>
+            <td>{{ item.total_versions }}</td>
+            <td>{{ item.date_recorded|date:"M d, Y" }}</td>
+            <td><button onclick="showHistory({{ item.establishment_id }})" class="table-action-btn primary">View History</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="no-data">
+    <div class="no-data-icon">🏗️</div>
+    <p>
+      {% if search %}
+        No establishments found matching "{{ search }}".
+      {% else %}
+        No establishment history available yet.
+      {% endif %}
+    </p>
+    {% if search %}
+      <button class="clear-btn" onclick="clearSearch()" style="margin-top: 1rem;">Clear search</button>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<script>
+function applySearch() {
+  var searchValue = document.getElementById('searchInput').value;
+  if (searchValue) {
+    var url = new URL(window.location);
+    url.searchParams.set('search', searchValue);
+    window.location = url;
+  }
+}
+
+function clearSearch() {
+  window.location = window.location.pathname;
+}
+
+async function showHistory(establishmentId) {
+  const response = await fetch(`/penro/establishment-history/${establishmentId}/versions/`);
+  const versions = await response.json();
+  
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;';
+  
+  let rows = versions.map(v => `
+    <tr onclick="showDetails('${v.attested_by_signature}', '${v.noted_by_signature}', '${v.attested_by_name}', '${v.attested_by_position}', '${v.noted_by_name}', '${v.noted_by_position}')" style="cursor:pointer;font-size:0.85rem;">
+      <td style="padding:0.5rem;">v${v.version}</td>
+      <td style="padding:0.5rem;">${v.establishment_name || '—'}</td>
+      <td style="padding:0.5rem;">${v.establishment_type || '—'}</td>
+      <td style="padding:0.5rem;">${v.establishment_status || '—'}</td>
+      <td style="padding:0.5rem;">${v.pa_name || '—'}</td>
+      <td style="padding:0.5rem;">${v.attested_by_name || '—'}</td>
+      <td style="padding:0.5rem;">${v.noted_by_name || '—'}</td>
+      <td style="padding:0.5rem;">${new Date(v.updated_at).toLocaleDateString()}</td>
+    </tr>
+  `).join('');
+  
+  modal.innerHTML = `
+    <div style="background:white;padding:1.5rem;border-radius:8px;max-width:1050px;max-height:85vh;overflow-y:auto;">
+      <h3 style="margin-top:0;font-size:1.1rem;">Version History</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+        <thead><tr style="background:#f2fdf8;"><th style="padding:0.5rem;text-align:left;font-size:0.85rem;">Ver</th><th style="padding:0.5rem;text-align:left;font-size:0.85rem;">Name</th><th style="padding:0.5rem;text-align:left;font-size:0.85rem;">Type</th><th style="padding:0.5rem;text-align:left;font-size:0.85rem;">Status</th><th style="padding:0.5rem;text-align:left;font-size:0.85rem;">Protected Area</th><th style="padding:0.5rem;text-align:left;font-size:0.85rem;">Attested By</th><th style="padding:0.5rem;text-align:left;font-size:0.85rem;">Noted By</th><th style="padding:0.5rem;text-align:left;font-size:0.85rem;">Date</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="margin-top:1rem;padding:0.5rem 1rem;background:#4CAF50;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.85rem;">Close</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.onclick = (e) => { if(e.target === modal) modal.remove(); };
+}
+
+function showDetails(attestedSig, notedSig, attestedName, attestedPos, notedName, notedPos) {
+  event.stopPropagation();
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1001;';
+  modal.innerHTML = `
+    <div style="background:white;padding:2rem;border-radius:8px;max-width:600px;max-height:80vh;overflow-y:auto;">
+      <h3 style="margin-top:0;">Attestation Details</h3>
+      <div style="margin:1rem 0;">
+        <h4>Attested By:</h4>
+        <p><strong>${attestedName || '—'}</strong> (${attestedPos || '—'})</p>
+        ${attestedSig && attestedSig !== 'None' && attestedSig !== 'null' ? `<img src="${attestedSig}" style="max-width:100%;border:1px solid #ddd;margin-top:0.5rem;">` : '<p style="color:#999;">No signature</p>'}
+      </div>
+      <div style="margin:1rem 0;">
+        <h4>Noted By:</h4>
+        <p><strong>${notedName || '—'}</strong> (${notedPos || '—'})</p>
+        ${notedSig && notedSig !== 'None' && notedSig !== 'null' ? `<img src="${notedSig}" style="max-width:100%;border:1px solid #ddd;margin-top:0.5rem;">` : '<p style="color:#999;">No signature</p>'}
+      </div>
+      <button onclick="this.closest('div[style*=fixed]').remove()" style="margin-top:1rem;padding:0.5rem 1rem;background:#4CAF50;color:white;border:none;border-radius:4px;cursor:pointer;">Close</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.onclick = (e) => { if(e.target === modal) modal.remove(); };
+}
+
+document.getElementById('searchInput').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') applySearch();
+});
+</script>
+
+{% endblock %}

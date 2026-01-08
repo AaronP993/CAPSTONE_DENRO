@@ -151,13 +151,23 @@ if (typeof saveSignature === 'undefined') {
         container.innerHTML = `<img src="${resp.noted_by_signature_url || resp.signature_url}" alt="Noted signature">`;
         document.getElementById('modalNotedByName').textContent = name || '—';
         document.getElementById('modalNotedByPosition').innerHTML = (position || '—') + '<br>(Name & Signature)';
-        alert('Notation saved.');
+        
+        if (resp.added_to_history) {
+          alert('Notation saved successfully!\n\nThis report has been fully attested and noted. It has been added to the establishment history.');
+        } else {
+          alert('Notation saved.');
+        }
       } else {
         const container = document.getElementById('modalAttestedBySigContainer');
         container.innerHTML = `<img src="${resp.attested_by_signature_url || resp.signature_url}" alt="Attested signature">`;
         document.getElementById('modalAttestedByName').textContent = name || '—';
         document.getElementById('modalAttestedByPosition').innerHTML = (position || '—') + '<br>(Name & Signature)';
-        alert('Attestation saved.');
+        
+        if (resp.added_to_history) {
+          alert('Attestation saved successfully!\n\nThis report has been fully attested and noted. It has been added to the establishment history.');
+        } else {
+          alert('Attestation saved.');
+        }
       }
       closeSignaturePad();
     } else {

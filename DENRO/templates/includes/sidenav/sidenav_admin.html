@@ -1,3 +1,4 @@
+{% load static %}
 <!-- templates/includes/sidenav/sidenav_admin.html -->
 <aside class="sidenav">
   <div class="sidenav__header">
@@ -5,13 +6,48 @@
     <div class="title">ADMIN</div>
   </div>
   <ul class="sidenav__menu">
-    <li><a href="{% url 'Admin-dashboard' %}">Dashboard</a></li>
-    <li><a href="#">Activity Logs</a></li>
-    <li><a href="#">User Accounts</a></li>
-    <li><a href="{% url 'Admin-reports' %}">Reports</a></li>
-    <li><a href="{% url 'protected-areas' %}">Protected Areas</a></li>
+    <li>
+      <a href="{% url 'Admin-dashboard' %}">
+        <img src="{% static 'images/dashboard.png' %}" alt="" class="nav-icon" aria-hidden="true">
+        <span>Dashboard</span>
+      </a>
+    </li>
+    <!-- <li><a href="#">Activity Logs</a></li> -->
+    <li>
+      <a href="{% url 'Admin-reports' %}">
+        <img src="{% static 'images/reports.png' %}" alt="" class="nav-icon" aria-hidden="true">
+        <span>New Entries</span>
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'admin-establishment-history' %}">
+        <img src="{% static 'images/history.png' %}" alt="" class="nav-icon" aria-hidden="true">
+        <span>Establishment</span>
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'protected-areas' %}">
+        <img src="{% static 'images/history.png' %}" alt="" class="nav-icon" aria-hidden="true">
+        <span>Protected Areas</span>
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'admin-usermanagement' %}">
+        <img src="{% static 'images/users.png' %}" alt="" class="nav-icon" aria-hidden="true">
+        <span>User Management</span>
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'admin-profile' %}">
+        <img src="{% static 'images/users.png' %}" alt="" class="nav-icon" aria-hidden="true">
+        <span>Profile</span>
+      </a>
+    </li>
   </ul>
   <div class="sidenav__footer">
-    <a href="{% url 'logout' %}">Logout</a>
+    <a href="{% url 'logout' %}">
+      <img src="{% static 'images/logout.png' %}" alt="" class="nav-icon" aria-hidden="true">
+      <span>Logout</span>
+    </a>
   </div>
 </aside>

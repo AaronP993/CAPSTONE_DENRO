@@ -44,21 +44,12 @@
          <!-- LEGEND -->
             <div style="font-size: 12px; margin-top: 15px; color: #333;">
                 <h3 style="margin-bottom: 8px; color: #222; font-size: 14px;">Legend</h3>
-
+                {% for area in protected_areas %}
                 <div style="display: flex; align-items: center; margin-bottom: 6px;">
-                    <span style="width: 12px; height: 12px; background: #4dc9f6; border-radius: 50%; margin-right: 10px;"></span>
-                    Central Cebu Protected Landscape (CCPL)
+                    <span style="width: 12px; height: 12px; background: {% cycle '#4dc9f6' '#f67019' '#f53794' '#f9c74f' '#90be6d' '#43aa8b' '#577590' '#f94144' '#f3722c' '#f8961e' %}; border-radius: 50%; margin-right: 10px;"></span>
+                    {{ area.name }}
                 </div>
-
-                <div style="display: flex; align-items: center; margin-bottom: 6px;">
-                    <span style="width: 12px; height: 12px; background: #f67019; border-radius: 50%; margin-right: 10px;"></span>
-                    Olango Island Wildlife Sanctuary (OIWS)
-                </div>
-
-                <div style="display: flex; align-items: center; margin-bottom: 6px;">
-                    <span style="width: 12px; height: 12px; background: #f53794; border-radius: 50%; margin-right: 10px;"></span>
-                    Moalboal Marine Protected Area (MPA)
-                </div>
+                {% endfor %}
             </div>
 
 
@@ -72,13 +63,14 @@
 <script>
 /* ================= BAR CHART ================= */
 const barCtx = document.getElementById('barChart');
+const establishmentTypes = {{ establishment_types|safe }};
 new Chart(barCtx, {
     type: 'bar',
     data: {
-        labels: ['Household', 'Business', 'Farm', 'Commercial', 'Industrial'],
+        labels: establishmentTypes.map(item => item.type),
         datasets: [{
             label: 'Count',
-            data: [120, 90, 70, 40, 30],
+            data: establishmentTypes.map(item => item.count),
             backgroundColor: '#1abc9c'
         }]
     },
@@ -91,18 +83,15 @@ new Chart(barCtx, {
 
 /* ================= PIE CHART ================= */
 const pieCtx = document.getElementById('pieChart');
+const protectedAreas = {{ protected_areas|safe }};
 
 new Chart(pieCtx, {
     type: 'pie',
     data: {
-        labels: [
-            'Central Cebu Protected Landscape (CCPL)',
-            'Olango Island Wildlife Sanctuary (OIWS)',
-            'Moalboal Marine Protected Area (MPA)'
-        ],
+        labels: protectedAreas.map(item => item.name),
         datasets: [{
-            data: [180, 75, 40], // Replace with real DB values
-            backgroundColor: ['#4dc9f6', '#f67019', '#f53794']
+            data: protectedAreas.map(item => item.count),
+            backgroundColor: ['#4dc9f6', '#f67019', '#f53794', '#f9c74f', '#90be6d', '#43aa8b', '#577590', '#f94144', '#f3722c', '#f8961e']
         }]
     },
     options: {
@@ -113,5 +102,4 @@ new Chart(pieCtx, {
 </script>
 
 {% endblock %}
-
 

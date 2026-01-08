@@ -19,7 +19,7 @@
       </a>
     </li>
 
-    <li>
+    <!-- <li>
       <a href="{% url 'PENRO-activitylogs' %}">
         <img
           src="{% static 'images/activitylogs.png' %}"
@@ -29,7 +29,7 @@
         />
         <span>Activity Logs</span>
       </a>
-    </li>
+    </li> -->
 
     <li>
       <a href="{% url 'PENRO-reports' %}">
@@ -39,7 +39,41 @@
           class="nav-icon"
           aria-hidden="true"
         />
-        <span>Reports</span>
+        <span>New Entries</span>
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'penro-establishment-history' %}">
+        <img
+          src="{% static 'images/history.png' %}"
+          alt=""
+          class="nav-icon"
+          aria-hidden="true"
+        />
+        <span>Establishment</span>
+      </a>
+    </li>
+    <li>
+      <a href="{% url 'PENRO-usermanagement' %}">
+        <img
+          src="{% static 'images/users.png' %}"
+          alt=""
+          class="nav-icon"
+          aria-hidden="true"
+        />
+        <span>User Management</span>
+      </a>
+    </li>
+
+    <li>
+      <a href="{% url 'PENRO-profile' %}">
+        <img
+          src="{% static 'images/users.png' %}"
+          alt=""
+          class="nav-icon"
+          aria-hidden="true"
+        />
+        <span>Profile</span>
       </a>
     </li>
   </ul>

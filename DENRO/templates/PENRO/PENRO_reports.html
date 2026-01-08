@@ -134,66 +134,15 @@
   
   /* Remove old responsive section - filters stay in one row now */
   
-  /* Table container with scroll */
-  .table-container {
+  .table-container, .table-scroll-container {
     flex: 1;
     overflow-y: auto;
     overflow-x: auto;
     margin-top: 0.75rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
     min-height: 0;
   }
-  
-  /* Custom scrollbar styling */
-  .table-container::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  
-  .table-container::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 4px;
-  }
-  
-  .table-container::-webkit-scrollbar-thumb {
-    background: #cdebe0;
-    border-radius: 4px;
-  }
-  
-  .table-container::-webkit-scrollbar-thumb:hover {
-    background: #4CAF50;
-  }
-  
-  table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-  }
-  th, td {
-    padding: .6rem;
-    border: 1px solid #ddd;
-    text-align: left;
-  }
-  th {
-    background: #f2fdf8;
-    font-weight: 600;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-  tbody tr {
+  .report-row {
     cursor: pointer;
-    transition: all 0.2s ease;
-  }
-  tbody tr:hover {
-    background: #f0f8f5;
-    transform: scale(1.01);
-    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.1);
-  }
-  .report-id {
-    font-weight: 500;
-    color: #2c5aa0;
   }
   .remarks-cell {
     max-width: 200px;
@@ -342,39 +291,41 @@
   </div>
 
   {% if reports %}
-  <div class="table-container">
-    <table>
-      <thead>
-        <tr>
-          <th>Report ID</th>
-          <th>Report Date</th>
-          <th>Establishment</th>
-          <th>Type</th>
-          <th>Status</th>
-          <th>Protected Area</th>
-          <th>Proponent</th>
-          <th>Enumerator</th>
-          <th>Remarks</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for report in reports %}
-        <tr class="report-row" data-report-id="{{ report.id }}">
-          <td class="report-id">#{{ report.id }}</td>
-          <td>{{ report.report_date|date:"M d, Y" }}</td>
-          <td>{{ report.establishment_name|default:"—" }}</td>
-          <td>{{ report.establishment_type|default:"—" }}</td>
-          <td>{{ report.establishment_status|default:"—" }}</td>
-          <td>{{ report.pa_name|default:"—" }}</td>
-          <td>{{ report.proponent_name|default:"—" }}</td>
-          <td>{{ report.enumerator_name|default:"—" }}</td>
-          <td class="remarks-cell" title="{{ report.remarks|default:'' }}">
-            {{ report.remarks|default:"—" }}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="table-scroll-container{% if reports|length > 5 %} has-scroll{% endif %}">
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Report ID</th>
+            <th>Report Date</th>
+            <th>Establishment</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Protected Area</th>
+            <th>Proponent</th>
+            <th>Enumerator</th>
+            <th>Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for report in reports %}
+          <tr class="report-row" data-report-id="{{ report.id }}">
+            <td class="report-id">#{{ report.id }}</td>
+            <td>{{ report.report_date|date:"M d, Y" }}</td>
+            <td>{{ report.establishment_name|default:"—" }}</td>
+            <td>{{ report.establishment_type|default:"—" }}</td>
+            <td>{{ report.establishment_status|default:"—" }}</td>
+            <td>{{ report.pa_name|default:"—" }}</td>
+            <td>{{ report.proponent_name|default:"—" }}</td>
+            <td>{{ report.enumerator_name|default:"—" }}</td>
+            <td class="remarks-cell" title="{{ report.remarks|default:'' }}">
+              {{ report.remarks|default:"—" }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
   {% else %}
   <div class="no-data">

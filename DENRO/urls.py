@@ -40,11 +40,17 @@ urlpatterns = [
     path('cenro/reports/<int:report_id>/note/', views.cenro_note_report, name='CENRO-report-note'),
     path('cenro/templates/',     views.cenro_templates,    name='CENRO-templates'),
     path("cenro/activity-logs/", views.cenro_activitylogs, name="cenro_activity_logs"),
-    
+    path("cenro/establishment-history/", views.cenro_establishment_history, name="cenro-establishment-history"),
+    path("cenro/establishment-history/<int:establishment_id>/versions/", views.cenro_establishment_versions, name="cenro-establishment-versions"),
+    path('cenro/user-management/', views.cenro_usermanagement, name='CENRO-usermanagement'),
+    path('cenro/profile/', views.cenro_profile, name='CENRO-profile'),
+
     # PENRO subpages
     path('penro/activity-logs/', views.penro_activitylogs, name='PENRO-activitylogs'),
     path('penro/reports/', views.penro_reports, name='PENRO-reports'),
     path('penro/reports/export/', views.penro_export_reports, name='PENRO-reports-export'),
+    path('penro/establishment-history/', views.penro_establishment_history, name='penro-establishment-history'),
+    path('penro/establishment-history/<int:establishment_id>/versions/', views.penro_establishment_versions, name='penro-establishment-versions'),
     path('penro/user-management/', views.penro_usermanagement, name='PENRO-usermanagement'),
     path('penro/profile/', views.penro_profile, name='PENRO-profile'),
     
@@ -56,6 +62,12 @@ urlpatterns = [
     path('admin/reports/', views.admin_reports, name='Admin-reports'),
     path('admin/reports/<int:report_id>/details/', views.admin_report_details, name='Admin-report-details'),
     path('admin/reports/export/', views.admin_export_reports, name='Admin-reports-export'),
+    path('admin/establishment-history/', views.admin_establishment_history, name='admin-establishment-history'),
+    path('admin/establishment-history/<int:establishment_id>/versions/', views.admin_establishment_versions, name='admin-establishment-versions'),
+    path('admin/user-management/', views.admin_usermanagement, name='admin-usermanagement'),
+    path('admin/user-update/', views.admin_user_update, name='admin-user-update'),
+    path('admin/user-delete/', views.admin_user_delete, name='admin-user-delete'),
+    path('admin/profile/', views.admin_profile, name='admin-profile'),
 
 
 ]
