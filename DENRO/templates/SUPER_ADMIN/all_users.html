@@ -1,8 +1,62 @@
 {% extends "base.html" %} 
+{% load static %}
 
 {% block title %}All Users{% endblock %} 
 
+{% block extra_css %}
+<style>
+.main-section { overflow: hidden !important; }
+</style>
+{% endblock %}
+
 {% block content %}
-<h1>All Users</h1>
-<p>Content for All Users page.</p>
+{% include 'includes/topnav/topnav_superadmin.html' with page_title="ALL USERS" %}
+<div class="dashboard-container" style="padding: 15px; height: calc(100vh - 60px);">
+  <div style="background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); height: 100%; display: flex; flex-direction: column;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2 style="margin: 0; color: #222; font-size: 20px;">All Users</h2>
+      <a href="{% url 'account-create' %}"
+         style="display: inline-block; padding: 10px 20px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px; font-weight: 500;">
+        + Add User
+      </a>
+    </div>
+
+    <div style="flex: 1;">
+      <div {% if users|length > 6 %}style="max-height: 400px; overflow-y: auto;"{% endif %}>
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr style="background: #f2fdf8; border-bottom: 2px solid #ddd;">
+            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">User ID</th>
+            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Name</th>
+            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Role</th>
+            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Region</th>
+            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">PENRO</th>
+            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">CENRO</th>
+            <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Email</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for user in users %}
+          <tr>
+            <td style="padding: 10px; border: 1px solid #ddd;">{{ user.user_id }}</td>
+            <td style="padding: 10px; border: 1px solid #ddd;">{{ user.first_name }} {{ user.last_name }}</td>
+            <td style="padding: 10px; border: 1px solid #ddd;">{{ user.role }}</td>
+            <td style="padding: 10px; border: 1px solid #ddd;">{{ user.region_name }}</td>
+            <td style="padding: 10px; border: 1px solid #ddd;">{{ user.penro_name }}</td>
+            <td style="padding: 10px; border: 1px solid #ddd;">{{ user.cenro_name }}</td>
+            <td style="padding: 10px; border: 1px solid #ddd;">{{ user.email }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" style="padding: 40px; text-align: center; color: #666; border: 1px solid #ddd;">
+              No users found.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

@@ -31,7 +31,6 @@
           <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Region</th>
           <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">PENRO</th>
           <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">CENRO</th>
-          <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Status</th>
           <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Actions</th>
         </tr>
       </thead>
@@ -44,7 +43,6 @@
           <td style="padding: 10px; border: 1px solid #ddd;">{{ user.region_name }}</td>
           <td style="padding: 10px; border: 1px solid #ddd;">{{ user.penro_name }}</td>
           <td style="padding: 10px; border: 1px solid #ddd;">{{ user.cenro_name }}</td>
-          <td style="padding: 10px; border: 1px solid #ddd;"><span style="color: #4CAF50; font-weight: 500;">Active</span></td>
           <td style="padding: 10px; border: 1px solid #ddd;">
             <button 
               data-user-id="{{ user.user_id }}" 
@@ -64,7 +62,7 @@
         </tr>
         {% empty %}
         <tr>
-          <td colspan="8" style="padding: 40px; text-align: center; color: #666; border: 1px solid #ddd;">
+          <td colspan="7" style="padding: 40px; text-align: center; color: #666; border: 1px solid #ddd;">
             No users found. Click "Create New User" to add users.
           </td>
         </tr>

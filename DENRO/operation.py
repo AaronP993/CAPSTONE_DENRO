@@ -1481,10 +1481,10 @@ def get_reports_context(request, submitter_role):
         'supabase_bucket': os.getenv('SUPABASE_BUCKET', 'images'),
     }
 
-def get_all_users(current_role=None):
+def get_all_users(current_role=None, penro_id=None):
     """Fetch users from database filtered by current user's role.
     - Admin: All users except Super Admin
-    - PENRO: PENRO and CENRO users only
+    - PENRO: PENRO and CENRO users only within their jurisdiction
     - CENRO: CENRO users only
     """
     try:
@@ -1500,16 +1500,21 @@ def get_all_users(current_role=None):
                 WHERE 1=1
             """
             
+            params = []
+            
             if current_role == 'admin':
                 query += " AND LOWER(u.role) != 'super admin'"
             elif current_role == 'penro':
                 query += " AND LOWER(u.role) IN ('penro', 'cenro')"
+                if penro_id:
+                    query += " AND u.penro_id = %s"
+                    params.append(penro_id)
             elif current_role == 'cenro':
                 query += " AND LOWER(u.role) = 'cenro'"
             
             query += " ORDER BY u.id DESC;"
             
-            cur.execute(query)
+            cur.execute(query, params)
             
             users = []
             for row in cur.fetchall():
@@ -1973,3 +1978,113 @@ def get_protected_area_stats(role=None, cenro_id=None, penro_id=None, region_id=
         logger.exception(f'Error fetching protected area stats: {e}')
         
     return stats
+
+
+def get_superadmin_dashboard_stats():
+    """Get statistics for Super Admin dashboard."""
+    stats = {}
+    
+    try:
+        with connection.cursor() as cur:
+            # Count users by role
+            cur.execute("SELECT COUNT(*) FROM users WHERE LOWER(role) = 'admin'")
+            stats['admin_count'] = cur.fetchone()[0]
+            
+            cur.execute("SELECT COUNT(*) FROM users WHERE LOWER(role) = 'penro'")
+            stats['penro_count'] = cur.fetchone()[0]
+            
+            cur.execute("SELECT COUNT(*) FROM users WHERE LOWER(role) = 'cenro'")
+            stats['cenro_count'] = cur.fetchone()[0]
+            
+            cur.execute("SELECT COUNT(*) FROM users WHERE LOWER(role) = 'evaluator'")
+            stats['evaluator_count'] = cur.fetchone()[0]
+            
+            # Active vs inactive (assuming all users are active for now)
+            cur.execute("SELECT COUNT(*) FROM users WHERE LOWER(role) != 'super admin'")
+            stats['active_users'] = cur.fetchone()[0]
+            stats['inactive_users'] = 0
+            
+    except Exception as e:
+        logger.exception(f'Error fetching superadmin dashboard stats: {e}')
+        
+    return stats
+
+
+def get_all_users_superadmin():
+    """Fetch all users for Super Admin."""
+    try:
+        with connection.cursor() as cur:
+            query = """
+                SELECT u.id, u.first_name, u.last_name, u.role, u.username, u.email,
+                       COALESCE(r.name, p.name, c.name, 'N/A') as office,
+                       r.name as region_name, p.name as penro_name, c.name as cenro_name
+                FROM users u
+                LEFT JOIN regions r ON u.region_id = r.id
+                LEFT JOIN penros p ON u.penro_id = p.id
+                LEFT JOIN cenros c ON u.cenro_id = c.id
+                ORDER BY u.id DESC;
+            """
+            
+            cur.execute(query)
+            
+            users = []
+            for row in cur.fetchall():
+                users.append({
+                    'user_id': row[0],
+                    'first_name': row[1],
+                    'last_name': row[2],
+                    'role': row[3],
+                    'username': row[4],
+                    'email': row[5],
+                    'office': row[6],
+                    'region_name': row[7] or '—',
+                    'penro_name': row[8] or '—',
+                    'cenro_name': row[9] or '—'
+                })
+            return users
+    except Exception as e:
+        logger.exception('Error fetching all users: %s', e)
+        return []
+
+
+def get_region_admins():
+    """Fetch all region admins with their region info."""
+    try:
+        with connection.cursor() as cur:
+            query = """
+                SELECT u.id, u.first_name, u.last_name, u.username, u.email,
+                       r.id as region_id, r.name as region_name
+                FROM users u
+                LEFT JOIN regions r ON u.region_id = r.id
+                WHERE LOWER(u.role) = 'admin'
+                ORDER BY r.name, u.last_name;
+            """
+            
+            cur.execute(query)
+            
+            admins = []
+            for row in cur.fetchall():
+                admins.append({
+                    'user_id': row[0],
+                    'first_name': row[1],
+                    'last_name': row[2],
+                    'username': row[3],
+                    'email': row[4],
+                    'region_id': row[5],
+                    'region_name': row[6] or 'Unassigned'
+                })
+            return admins
+    except Exception as e:
+        logger.exception('Error fetching region admins: %s', e)
+        return []
+
+
+def get_all_regions():
+    """Fetch all regions."""
+    try:
+        with connection.cursor() as cur:
+            cur.execute("SELECT id, name FROM regions ORDER BY name;")
+            return [{'id': r[0], 'name': r[1]} for r in cur.fetchall()]
+    except Exception as e:
+        logger.exception('Error fetching regions: %s', e)
+        return []

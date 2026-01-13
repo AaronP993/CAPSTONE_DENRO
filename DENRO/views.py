@@ -33,12 +33,17 @@ def create_account_view(request):
 @login_required
 @role_required(['Super Admin'])
 def superadmin_dashboard(request):
-    return render(request, 'SUPER_ADMIN/SA_dashboard.html')
+    from .operation import get_superadmin_dashboard_stats
+    stats = get_superadmin_dashboard_stats()
+    return render(request, 'SUPER_ADMIN/SA_dashboard.html', stats)
 
 @login_required
 @role_required(['Super Admin'])
 def sa_region_admin_management(request):
-    return render(request, 'SUPER_ADMIN/region_admin_management.html')
+    from .operation import get_region_admins, get_all_regions
+    admins = get_region_admins()
+    regions = get_all_regions()
+    return render(request, 'SUPER_ADMIN/region_admin_management.html', {'admins': admins, 'regions': regions})
 
 @login_required
 @role_required(['Super Admin'])
@@ -58,7 +63,9 @@ def sa_activity_logs(request):
 @login_required
 @role_required(['Super Admin'])
 def sa_all_users(request):
-    return render(request, 'SUPER_ADMIN/all_users.html')
+    from .operation import get_all_users_superadmin
+    users = get_all_users_superadmin()
+    return render(request, 'SUPER_ADMIN/all_users.html', {'users': users})
 
 @login_required
 @role_required(['Super Admin'])
@@ -158,7 +165,11 @@ def penro_reports(request):
 @login_required
 @role_required(['PENRO'])
 def penro_usermanagement(request):
-    return render(request, 'PENRO/PENRO_usermanagement.html')
+    from .operation import get_all_users
+    current_role = request.session.get('role', '').lower()
+    penro_id = request.session.get('penro_id')
+    users = get_all_users(current_role, penro_id=penro_id)
+    return render(request, 'PENRO/PENRO_usermanagement.html', {'users': users})
 
 @login_required
 @role_required(['PENRO'])

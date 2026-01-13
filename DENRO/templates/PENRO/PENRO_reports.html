@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}PENRO Reports{% endblock %}
+{% block title %}PENRO New Entries{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -171,7 +171,7 @@
 {% include 'includes/topnav/topnav_penro.html' with page_title="PENRO REPORTS" %}
 <div class="reports-container">
   <div class="reports-header">
-    <h2>📋 Enumerator Reports</h2>
+    <h2>📋 New Entries</h2>
     <p class="reports-count">
       {% if reports %}
         Showing {{ reports|length }} report{% if reports|length != 1 %}s{% endif %}
