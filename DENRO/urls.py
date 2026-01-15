@@ -58,6 +58,7 @@ urlpatterns = [
     #Admin Subpages
     path('admin/protected-areas/', views.protected_areas, name='protected-areas'),
     path('admin/protected-areas/convert/<path:file_path>/', views.convert_shapefile_to_geojson, name='convert-shapefile'),
+    path('list-enumerated-pa/', views.list_enumerated_pa, name='list-enumerated-pa'),
     path('admin/reports/', views.admin_reports, name='ADMIN-reports'),
     path('admin/reports/', views.admin_reports, name='Admin-reports'),
     path('admin/reports/<int:report_id>/details/', views.admin_report_details, name='Admin-report-details'),

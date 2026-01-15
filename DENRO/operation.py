@@ -2088,3 +2088,34 @@ def get_all_regions():
     except Exception as e:
         logger.exception('Error fetching regions: %s', e)
         return []
+
+def convert_shapefile_to_geojson(file_path):
+    """Convert shapefile to GeoJSON."""
+    import tempfile
+    import zipfile
+    try:
+        bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
+        with tempfile.TemporaryDirectory() as tmpdir:
+            file_data = supabase.storage.from_(bucket).download(file_path)
+            zip_path = os.path.join(tmpdir, 'shapefile.zip')
+            with open(zip_path, 'wb') as f:
+                f.write(file_data)
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(tmpdir)
+            shp_file = next((f for f in os.listdir(tmpdir) if f.endswith('.shp')), None)
+            if not shp_file:
+                return None, 'No .shp file found'
+            shp_path = os.path.join(tmpdir, shp_file)
+            import fiona
+            features = []
+            with fiona.open(shp_path) as src:
+                for feature in src:
+                    features.append({
+                        'type': 'Feature',
+                        'properties': dict(feature['properties']),
+                        'geometry': dict(feature['geometry'])
+                    })
+            return {'type': 'FeatureCollection', 'features': features}, None
+    except Exception as e:
+        logger.exception('Error converting shapefile: %s', e)
+        return None, str(e)

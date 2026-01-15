@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}List Enumerated PA{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  .pa-container {
+    background: #fff;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #cdebe0;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 120px);
+    overflow: hidden;
+  }
+  .pa-header {
+    margin-bottom: 1rem;
+    flex-shrink: 0;
+  }
+  .pa-header h2 {
+    margin: 0 0 0.5rem 0;
+  }
+  .pa-count {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+  }
+  .table-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    margin-top: 0.75rem;
+    min-height: 0;
+  }
+  .no-data {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #666;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+  .no-data-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+  }
+  .btn-view {
+    background: #2196F3;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  .btn-view:hover {
+    background: #1976D2;
+  }
+  .modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+  }
+  .modal.active {
+    display: flex;
+  }
+  .map-modal-content {
+    background: white;
+    padding: 0;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 1000px;
+    height: 80vh;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+  }
+  .map-modal-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .map-modal-header h2 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 1.3rem;
+  }
+  .close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #666;
+  }
+  .close-btn:hover {
+    color: #000;
+  }
+  #map {
+    flex: 1;
+    width: 100%;
+    border-radius: 0 0 8px 8px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pa-container">
+  <div class="pa-header">
+    <h2>📋 List of Enumerated in Protected Areas</h2>
+    <p class="pa-count">
+      {% if protected_areas %}
+        Showing {{ protected_areas|length }} protected area{% if protected_areas|length != 1 %}s{% endif %}
+      {% else %}
+        No protected areas found
+      {% endif %}
+    </p>
+  </div>
+  
+  {% if protected_areas %}
+  <div class="table-scroll-container">
+    <div class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Protected Area Name</th>
+            <th>File Type</th>
+            <th>Enumerated Count</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pa in protected_areas %}
+          <tr>
+            <td>#{{ pa.id }}</td>
+            <td>{{ pa.name }}</td>
+            <td>{{ pa.file_type|upper|default:"—" }}</td>
+            <td>{{ pa.enumerated_count|default:0 }}</td>
+            <td>
+              <button class="btn-view" onclick="viewPA({{ pa.id }}, '{{ pa.file_path }}', '{{ pa.name }}', '{{ pa.file_type }}')">View Map</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="no-data">
+    <div class="no-data-icon">🗂️</div>
+    <p>No protected areas available yet.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Map View Modal -->
+<div class="modal" id="mapModal">
+  <div class="map-modal-content">
+    <div class="map-modal-header">
+      <h2 id="mapTitle">Protected Area Map</h2>
+      <button class="close-btn" onclick="closeMapModal()">&times;</button>
+    </div>
+    <div id="map"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
+<script>
+/* eslint-disable */
+let map = null;
+const SUPABASE_URL = '{{ supabase_url|default:"" }}';
+const SUPABASE_BUCKET = '{{ supabase_bucket|default:"geo-tagged-photos" }}';
+const enumeratedData = {{ enumerated_data|safe }};
+
+function viewPA(paId, filePath, name, fileType) {
+  document.getElementById('mapModal').classList.add('active');
+  document.getElementById('mapTitle').textContent = name;
+  document.body.style.overflow = 'hidden';
+  
+  if (!map) {
+    map = L.map('map').setView([10.3157, 123.8854], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+  }
+  
+  map.eachLayer(function(layer) {
+    if (layer instanceof L.TileLayer === false) {
+      map.removeLayer(layer);
+    }
+  });
+  
+  const fileUrl = `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${filePath}`;
+  
+  if (fileType === 'kml') {
+    fetch(fileUrl)
+      .then(response => response.text())
+      .then(kmlText => {
+        const parser = new DOMParser();
+        const kml = parser.parseFromString(kmlText, 'text/xml');
+        const layer = omnivore.kml.parse(kml);
+        layer.addTo(map);
+        if (layer.getBounds().isValid()) {
+          map.fitBounds(layer.getBounds());
+        }
+        addEnumeratedMarkers(paId);
+      })
+      .catch(err => {
+        console.error('Error loading KML:', err);
+        alert('Failed to load KML file');
+      });
+  } else if (fileType === 'shp') {
+    fetch(`/admin/protected-areas/convert/${encodeURIComponent(filePath)}/`)
+      .then(response => {
+        if (!response.ok) {
+          return response.text().then(text => {
+            throw new Error(`HTTP ${response.status}: ${text.substring(0, 100)}`);
+          });
+        }
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          return response.text().then(text => {
+            throw new Error('Server returned non-JSON response: ' + text.substring(0, 100));
+          });
+        }
+        return response.json();
+      })
+      .then(geojson => {
+        const layer = L.geoJSON(geojson);
+        layer.addTo(map);
+        if (layer.getBounds().isValid()) {
+          map.fitBounds(layer.getBounds());
+        }
+        addEnumeratedMarkers(paId);
+      })
+      .catch(err => {
+        console.error('Error loading Shapefile:', err);
+        alert('Failed to load Shapefile: ' + err.message);
+      });
+  }
+  
+  setTimeout(() => map.invalidateSize(), 100);
+}
+
+function addEnumeratedMarkers(paId) {
+  const establishments = enumeratedData[paId] || [];
+  establishments.forEach(est => {
+    if (est.latitude && est.longitude) {
+      const marker = L.marker([est.latitude, est.longitude]).addTo(map);
+      marker.bindPopup(`
+        <strong>${est.establishment_name}</strong><br>
+        Type: ${est.establishment_type || '—'}<br>
+        Status: ${est.establishment_status || '—'}
+      `);
+    }
+  });
+}
+
+function closeMapModal() {
+  document.getElementById('mapModal').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+document.getElementById('mapModal').addEventListener('click', function(e) {
+  if (e.target === this) closeMapModal();
+});
+</script>
+{% endblock %}

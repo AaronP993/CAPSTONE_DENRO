@@ -546,7 +546,7 @@ function viewPA(filePath, name, fileType) {
       });
   } else if (fileType === 'shp') {
     // Convert shapefile to GeoJSON via backend
-    fetch(`/admin/protected-areas/convert/${filePath}/`)
+    fetch(`/admin/protected-areas/convert/${encodeURIComponent(filePath)}/`)
       .then(response => response.json())
       .then(geojson => {
         const layer = L.geoJSON(geojson);

@@ -456,13 +456,17 @@ def protected_areas(request):
             # Add new protected area
             name = request.POST.get('name', '').strip()
             file_obj = request.FILES.get('file')
+            jurisdiction_level = request.POST.get('jurisdiction_level', '').strip()
+            region_id = request.POST.get('region_id')
+            penro_id = request.POST.get('penro_id')
+            cenro_id = request.POST.get('cenro_id')
             
             if not name:
                 messages.error(request, 'Protected area name is required.')
             elif not file_obj:
                 messages.error(request, 'File upload is required.')
             else:
-                success, message = op.add_protected_area(name, file_obj)
+                success, message = op.add_protected_area(name, file_obj, jurisdiction_level, region_id, penro_id, cenro_id)
                 if success:
                     messages.success(request, message)
                 else:
@@ -473,77 +477,89 @@ def protected_areas(request):
     # GET request - display protected areas
     protected_areas_list = op.get_protected_areas()
     
+    # Get user's office info for jurisdiction assignment
+    user_region_id = request.session.get('region_id')
+    user_region_name = None
+    if user_region_id:
+        with connection.cursor() as cur:
+            cur.execute("SELECT name FROM regions WHERE id = %s;", [user_region_id])
+            row = cur.fetchone()
+            if row:
+                user_region_name = row[0]
+    
+    # Get available offices
+    penros = []
+    cenros = []
+    with connection.cursor() as cur:
+        if user_region_id:
+            cur.execute("SELECT id, name FROM penros WHERE region_id = %s ORDER BY name;", [user_region_id])
+            penros = [{'id': r[0], 'name': r[1]} for r in cur.fetchall()]
+            cur.execute("SELECT id, name FROM cenros WHERE penro_id IN (SELECT id FROM penros WHERE region_id = %s) ORDER BY name;", [user_region_id])
+            cenros = [{'id': r[0], 'name': r[1]} for r in cur.fetchall()]
+    
     return render(request, 'ADMIN/ProtectedArea.html', {
         'protected_areas': protected_areas_list,
+        'supabase_url': os.getenv('SUPABASE_URL'),
+        'supabase_bucket': os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos'),
+        'user_region_id': user_region_id,
+        'user_region_name': user_region_name,
+        'penros': penros,
+        'cenros': cenros,
+    })
+
+@login_required
+def list_enumerated_pa(request):
+    from . import operation as op
+    import json
+    
+    protected_areas_list = op.get_protected_areas()
+    
+    # Get enumerated establishments grouped by PA
+    enumerated_by_pa = {}
+    with connection.cursor() as cur:
+        cur.execute("""
+            SELECT er.pa_id, er.id, er.establishment_name, ep.establishment_type, 
+                   ep.establishment_status, gti.latitude, gti.longitude, pa.name as pa_name
+            FROM enumerators_report er
+            JOIN protected_areas pa ON er.pa_id = pa.id
+            LEFT JOIN establishment_profile ep ON er.establishment_id = ep.id
+            LEFT JOIN geo_tagged_images gti ON er.geo_tagged_image_id = gti.id
+            WHERE gti.latitude IS NOT NULL AND gti.longitude IS NOT NULL
+            ORDER BY pa.name, er.establishment_name
+        """)
+        for row in cur.fetchall():
+            pa_id = row[0]
+            if pa_id not in enumerated_by_pa:
+                enumerated_by_pa[pa_id] = []
+            enumerated_by_pa[pa_id].append({
+                'id': row[1],
+                'establishment_name': row[2],
+                'establishment_type': row[3],
+                'establishment_status': row[4],
+                'latitude': float(row[5]) if row[5] else None,
+                'longitude': float(row[6]) if row[6] else None,
+                'pa_name': row[7]
+            })
+    
+    # Add enumerated count to each PA
+    for pa in protected_areas_list:
+        pa['enumerated_count'] = len(enumerated_by_pa.get(pa['id'], []))
+    
+    return render(request, 'List_enumerated_pa.html', {
+        'protected_areas': protected_areas_list,
+        'enumerated_data': json.dumps(enumerated_by_pa),
         'supabase_url': os.getenv('SUPABASE_URL'),
         'supabase_bucket': os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos'),
     })
 
 
 @login_required
-@role_required(['Admin'])
 def convert_shapefile_to_geojson(request, file_path):
-    """Convert shapefile to GeoJSON for map viewing."""
-    import tempfile
-    import zipfile
-    from supabase import create_client
-    
-    try:
-        supabase = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_SERVICE_KEY'))
-        bucket = os.getenv('SUPABASE_BUCKET', 'geo-tagged-photos')
-        
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # Try as zip first
-            try:
-                file_data = supabase.storage.from_(bucket).download(file_path)
-                zip_path = os.path.join(tmpdir, 'shapefile.zip')
-                with open(zip_path, 'wb') as f:
-                    f.write(file_data)
-                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    zip_ref.extractall(tmpdir)
-                shp_file = next((f for f in os.listdir(tmpdir) if f.endswith('.shp')), None)
-                if shp_file:
-                    shp_path = os.path.join(tmpdir, shp_file)
-                else:
-                    return JsonResponse({'error': 'No .shp file in zip'}, status=400)
-            except zipfile.BadZipFile:
-                # Not a zip, treat as individual shapefile components
-                # Get base name without extension
-                base_name = os.path.basename(file_path).rsplit('.', 1)[0]
-                dir_path = os.path.dirname(file_path)
-                
-                # Download all components with same base name
-                extensions = ['.shp', '.shx', '.dbf', '.prj', '.cpg']
-                for ext in extensions:
-                    try:
-                        component_path = f"{dir_path}/{base_name}{ext}"
-                        component_data = supabase.storage.from_(bucket).download(component_path)
-                        with open(os.path.join(tmpdir, f'{base_name}{ext}'), 'wb') as f:
-                            f.write(component_data)
-                    except:
-                        if ext in ['.shp', '.shx', '.dbf']:  # Required files
-                            raise
-                
-                shp_path = os.path.join(tmpdir, f'{base_name}.shp')
-            
-            # Convert to GeoJSON
-            import fiona
-            
-            features = []
-            with fiona.open(shp_path) as src:
-                for feature in src:
-                    features.append({
-                        'type': 'Feature',
-                        'properties': dict(feature['properties']),
-                        'geometry': dict(feature['geometry'])
-                    })
-            
-            return JsonResponse({'type': 'FeatureCollection', 'features': features})
-    
-    except Exception as e:
-        import logging
-        logging.exception('Error converting shapefile')
-        return JsonResponse({'error': str(e)}, status=500)
+    from . import operation as op
+    geojson, error = op.convert_shapefile_to_geojson(file_path)
+    if error:
+        return JsonResponse({'error': error}, status=500)
+    return JsonResponse(geojson)
 
 
 @login_required
